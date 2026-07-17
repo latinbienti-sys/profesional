@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Contratos por Cliente - LATINBIEN</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js">
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --primary: #213C83;
+            --primary-dark: #1a2f66;
+            --primary-light: #3D6194;
+            --accent: #F98B10;
+            --accent-hover: #e07d0e;
+            --blue-light: #4163A8;
+            --bg-gray: #f0f2f5;
+            --text-dark: #1a1a2e;
+            --white: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-dark);
+            padding: 30px;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 35px 45px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 25px rgba(33, 60, 131, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(249, 139, 16, 0.08) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 30px;
+            position: relative;
+            z-index: 1;
+        }
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .header-logo img {
+            height: 55px;
+            width: auto;
+        }
+        .header-logo .divider {
+            width: 2px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .header-text h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+        .header-text h1 span {
+            font-weight: 300;
+            opacity: 0.85;
+        }
+        .header-text p {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+        .header-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .header-meta .meta-item {
+            background: rgba(255, 255, 255, 0.12);
+            padding: 8px 18px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 100px;
+        }
+        .header-meta .meta-item strong {
+            display: block;
+            font-size: 22px;
+            color: var(--accent);
+        }
+        .header-meta .meta-item span {
+            font-size: 11px;
+            opacity: 0.75;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* ===== KPI ===== */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+        .kpi-card {
+            background: var(--white);
+            border-radius: 14px;
+            padding: 20px 20px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            text-align: center;
+            border-top: 4px solid var(--primary-light);
+            transition: transform 0.2s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .kpi-card .number {
+            font-size: 30px;
+            font-weight: 800;
+            color: var(--primary);
+        }
+        .kpi-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .kpi-card.accent {
+            border-top-color: var(--accent);
+        }
+        .kpi-card.accent .number {
+            color: var(--accent);
+        }
+
+        /* ===== CHARTS ===== */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-bottom: 25px;
+        }
+        .chart-card {
+            background: var(--white);
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+        .chart-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--primary);
+            text-align: center;
+        }
+        .chart-card .chart-container {
+            position: relative;
+            height: 380px;
+        }
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+        .chart-card.full-width .chart-container {
+            height: 300px;
+        }
+
+        /* ===== FILTROS ===== */
+        .filtros-card {
+            background: var(--white);
+            border-radius: 14px;
+            padding: 20px 25px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            margin-bottom: 25px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 20px;
+        }
+        .filtros-card label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .filtros-card input[type="date"] {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: border-color 0.3s;
+        }
+        .filtros-card input[type="date"]:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+        .filtros-card .filtro-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filtros-card .btn-filtrar {
+            padding: 8px 22px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .filtros-card .btn-filtrar:hover {
+            background: var(--primary-dark);
+        }
+        .filtros-card .btn-reset {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            color: #666;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .filtros-card .btn-reset:hover {
+            background: #e0e0e0;
+        }
+        .filtros-card .filtro-info {
+            font-size: 13px;
+            color: #888;
+            margin-left: auto;
+        }
+
+        /* ===== TABLE ===== */
+        .table-card {
+            background: var(--white);
+            border-radius: 14px;
+            padding: 25px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            margin-bottom: 30px;
+        }
+        .table-card h3 {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+        .table-card .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .table-card .search-box input {
+            padding: 9px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 280px;
+            max-width: 100%;
+            transition: border-color 0.3s;
+        }
+        .table-card .search-box input:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+        .table-card .info {
+            font-size: 13px;
+            color: #888;
+        }
+        .table-card .pagination {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .table-card .pagination button {
+            padding: 6px 14px;
+            border: 1px solid #ddd;
+            background: var(--white);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .table-card .pagination button:hover:not(:disabled) {
+            background: var(--primary);
+            color: var(--white);
+            border-color: var(--primary);
+        }
+        .table-card .pagination button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .table-card .page-info {
+            font-size: 13px;
+            color: #888;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table thead th {
+            background: #f0f2f7;
+            padding: 11px 14px;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--primary);
+            border-bottom: 2px solid #e0e4ed;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        table thead th:hover {
+            background: #e6e9f0;
+        }
+        table thead th .sort-icon {
+            margin-left: 3px;
+            opacity: 0.3;
+        }
+        table thead th.sorted .sort-icon {
+            opacity: 1;
+            color: var(--accent);
+        }
+        table tbody td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        table tbody tr:hover {
+            background: #f8f9fc;
+        }
+        table tbody tr.top-client td {
+            background: #fef8f0;
+        }
+        table tbody tr.rank-1 {
+            border-left: 4px solid #D4A017;
+        }
+        table tbody tr.rank-2 {
+            border-left: 4px solid #A8A8A8;
+        }
+        table tbody tr.rank-3 {
+            border-left: 4px solid #CD7F32;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-gold {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-silver {
+            background: #e9ecef;
+            color: #495057;
+        }
+        .badge-bronze {
+            background: #ffe8d6;
+            color: #8b4513;
+        }
+        .badge-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-gray {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+            font-size: 12px;
+        }
+        .footer strong {
+            color: var(--primary);
+        }
+
+        /* ===== TABS ===== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: #e8eaf0;
+            border-radius: 12px;
+            padding: 4px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 10px 22px;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+        .tab-btn.active {
+            background: var(--white);
+            color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 900px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+            .header-logo {
+                justify-content: center;
+            }
+            .header-meta {
+                justify-content: center;
+            }
+            .header {
+                padding: 25px 20px;
+            }
+            .header-text h1 {
+                font-size: 22px;
+            }
+            body {
+                padding: 15px;
+            }
+            .table-card .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .table-card .search-box input {
+                width: 100%;
+            }
+            .filtros-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filtros-card .filtro-group {
+                flex-wrap: wrap;
+            }
+            .filtros-card .filtro-info {
+                margin-left: 0;
+            }
+        }
+        @media print {
+            .header,
+            .chart-card {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+
+        <!-- ===== HEADER ===== -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-logo">
+                    <img src="https://latinbien.com/web/image/website/1/logo/LATINBIEN?unique=4695b15"
+                    alt="LATINBIEN"
+                    onerror="this.style.display='none'">
+                    <div class="divider"></div>
+                    <div class="header-text">
+                        <h1>LATINBIEN <span>| Análisis de Cartera</span></h1>
+                        <p>Distribución de contratos por cliente + análisis temporal</p>
+                    </div>
+                </div>
+                <div class="header-meta">
+                    <div class="meta-item">
+                        <strong id="totalClientes">—</strong>
+                        <span>Clientes</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong id="totalContratos">—</strong>
+                        <span>Contratos</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong id="promedio">—</strong>
+                        <span>Promedio</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong id="maxContratos">—</strong>
+                        <span>Máximo</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TABS ===== -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('resumen')">📊 Resumen General</button>
+            <button class="tab-btn" onclick="switchTab('temporal')">⏱ Análisis Temporal VIP</button>
+            <button class="tab-btn" onclick="switchTab('tabla')">📋 Listado de Clientes</button>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 1: RESUMEN GENERAL                                        -->
+        <!-- ============================================================ -->
+        <div class="tab-content active" id="tab-resumen">
+
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="number" id="kpi1">—</div>
+                    <div class="label">Clientes con 1 contrato</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="number" id="kpi2">—</div>
+                    <div class="label">Clientes con 2 contratos</div>
+                </div>
+                <div class="kpi-card accent">
+                    <div class="number" id="kpi3">—</div>
+                    <div class="label">Clientes con 3+ contratos</div>
+                </div>
+                <div class="kpi-card accent">
+                    <div class="number" id="kpi4">—</div>
+                    <div class="label">Clientes con 5+ contratos (VIP)</div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-card">
+                    <h3>🏆 Top 20 Clientes con Más Contratos</h3>
+                    <div class="chart-container">
+                        <canvas id="chartTop20"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📊 Distribución de Contratos</h3>
+                    <div class="chart-container">
+                        <canvas id="chartDist"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="charts-row">
+                <div class="chart-card full-width">
+                    <h3>🧩 Composición de la Cartera</h3>
+                    <div class="chart-container">
+                        <canvas id="chartPie"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 2: ANÁLISIS TEMPORAL VIP                                  -->
+        <!-- ============================================================ -->
+        <div class="tab-content" id="tab-temporal">
+
+            <!-- KPIs temporales -->
+            <div class="kpi-row">
+                <div class="kpi-card accent">
+                    <div class="number" id="tmpVipCount">—</div>
+                    <div class="label">Clientes VIP (5+ contratos)</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="number" id="tmpAvgSpan">—</div>
+                    <div class="label">Promedio relación (meses)</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="number" id="tmpAvgFreq">—</div>
+                    <div class="label">Frecuencia entre compras (días)</div>
+                </div>
+                <div class="kpi-card accent">
+                    <div class="number" id="tmpMaxSpan">—</div>
+                    <div class="label">Cliente más antiguo (meses)</div>
+                </div>
+            </div>
+
+            <!-- Filtro de fechas -->
+            <div class="filtros-card">
+                <label>📅 Filtrar por rango de fechas:</label>
+                <div class="filtro-group">
+                    <span>Desde:</span>
+                    <input type="date" id="fechaDesde">
+                    <span>Hasta:</span>
+                    <input type="date" id="fechaHasta">
+                </div>
+                <button class="btn-filtrar" onclick="aplicarFiltroFechas()">Aplicar Filtro</button>
+                <button class="btn-reset" onclick="resetFiltroFechas()">Limpiar</button>
+                <span class="filtro-info" id="filtroInfo">Mostrando todos los períodos</span>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-card">
+                    <h3>⏱ Línea de Tiempo — Clientes VIP</h3>
+                    <div class="chart-container">
+                        <canvas id="chartTimeline"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📆 Distribución por Tiempo de Relación</h3>
+                    <div class="chart-container">
+                        <canvas id="chartRelacion"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-card full-width">
+                    <h3>🏆 Top 10 VIP — Detalle Temporal</h3>
+                    <div class="table-wrapper" style="margin-top: 10px;">
+                        <table id="tablaTemporal">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Cliente</th>
+                                    <th>Contratos</th>
+                                    <th>1ra Fecha</th>
+                                    <th>Últ Fecha</th>
+                                    <th>Días</th>
+                                    <th>Meses</th>
+                                    <th>Frec (días)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyTemporal"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 3: LISTADO COMPLETO                                       -->
+        <!-- ============================================================ -->
+        <div class="tab-content" id="tab-tabla">
+            <div class="table-card">
+                <h3>📋 Listado Completo de Clientes</h3>
+                <div class="controls">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Buscar cliente por nombre..." oninput="filterTable()">
+                    </div>
+                    <div class="info">
+                        Mostrando <span id="showing">0</span> de <span id="totalRows">0</span> clientes
+                    </div>
+                    <div class="pagination">
+                        <button onclick="changePage(-1)" id="prevBtn" disabled>◀ Anterior</button>
+                        <span class="page-info" id="pageInfo">Página 1 / 1</span>
+                        <button onclick="changePage(1)" id="nextBtn" disabled>Siguiente ▶</button>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable(0)" class="sorted"># <span class="sort-icon">▲</span></th>
+                                <th onclick="sortTable(1)">Cliente <span class="sort-icon">⇅</span></th>
+                                <th onclick="sortTable(2)" class="sorted">Contratos <span class="sort-icon">▲</span></th>
+                                <th onclick="sortTable(3)">Órdenes <span class="sort-icon">⇅</span></th>
+                                <th onclick="sortTable(4)">Categoría <span class="sort-icon">⇅</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <strong>LATINBIEN</strong> — Latinoamericana de Bienes y Servicios, C.A. &nbsp;·&nbsp;
+            Generado el <span id="fechaGeneracion"></span>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        //  DATA
+        // ================================================================
+
+        // --- Clientes con su conteo de contratos ---
+        const clientesData = [
+            { cliente: "FELIX EDEL LIMA DE LA SOTA", contratos: 19, filas: 19 },
+            { cliente: "GERARDO JOSE RAMIREZ F.", contratos: 14, filas: 14 },
+            { cliente: "SORELIS DEL CARMEN MORAN BOLANO", contratos: 10, filas: 10 },
+            { cliente: "JOSE GREGORIO VILLASMIL GUILLEN", contratos: 9, filas: 9 },
+            { cliente: "YAHVEH ELIANGE MARQUEZ CANCINE", contratos: 9, filas: 9 },
+            { cliente: "MARIA CLAUDIA DEL ROSARIO PEREZ PEREZ", contratos: 8, filas: 8 },
+            { cliente: "RUBISELA DEL VALLE MOYA GONZALEZ", contratos: 8, filas: 8 },
+            { cliente: "EVELYN YEANINE QUINTERO UZCATEGUI", contratos: 8, filas: 8 },
+            { cliente: "DANIEL J. RODRIGUEZ V.", contratos: 8, filas: 8 },
+            { cliente: "YONATHAN JOSE VIVAS CARRERO", contratos: 8, filas: 8 },
+            { cliente: "JOHAN ANTONIO MONTES PALMERA", contratos: 7, filas: 7 },
+            { cliente: "ROSMILA CHIQUINQUIRA VALLADARES LOPEZ", contratos: 7, filas: 7 },
+            { cliente: "JAIRLEY NAZARETH DEL CARMEN AMAYA MEZA", contratos: 7, filas: 7 },
+            { cliente: "OMAR ABRAHAM SALCEDO", contratos: 6, filas: 6 },
+            { cliente: "KARINA MOLINA VEGA", contratos: 6, filas: 6 },
+            { cliente: "FRANK ALBERTO VELASQUEZ HERNANDEZ", contratos: 6, filas: 6 },
+            { cliente: "LUIS EDUARDO UZCATEGUI", contratos: 6, filas: 6 },
+            { cliente: "CORY ESTEFANNY REINOZA MORENO", contratos: 6, filas: 7 },
+            { cliente: "LADY DIANA TORO RIVERA", contratos: 6, filas: 6 },
+            { cliente: "ALEXANDER JESUS GUTIERREZ VELIZ", contratos: 6, filas: 6 },
+            { cliente: "LEOMAR MAYELA VALERO RODRIGUEZ", contratos: 6, filas: 6 },
+            { cliente: "MARBELLYS RAMIREZ ROJAS", contratos: 6, filas: 6 },
+            { cliente: "CIPRIANO ENRIJESUS ALVARADO BLANCO", contratos: 6, filas: 6 },
+            { cliente: "OSMARA SOTO G", contratos: 6, filas: 6 },
+            { cliente: "YUSMARY DEL VALLE PENA DUGARTE", contratos: 6, filas: 6 },
+            { cliente: "HOMERO JAVIER RIVAS VARELA", contratos: 6, filas: 6 },
+            { cliente: "JEAN CARLOS PUENTES GUILLEN", contratos: 5, filas: 5 },
+            { cliente: "ASESORES EMPRESARIALES CAEMCA C.A", contratos: 5, filas: 5 },
+            { cliente: "SANTIAGO ENRIQUE PRIETO PEREIRA", contratos: 5, filas: 5 },
+            { cliente: "MARY CARMEN MARCHAN GUTIERREZ", contratos: 5, filas: 5 },
+            { cliente: "SANDRO LUENGAS MARTINEZ", contratos: 5, filas: 5 },
+            { cliente: "ALEXIS Y LA VENEZUELA DE ANTIER C.A.", contratos: 5, filas: 5 },
+            { cliente: "JUAN CARLOS GUERRA FERNANDEZ", contratos: 5, filas: 5 },
+            { cliente: "LUIS ALEJANDRO ROJAS ARAQUE", contratos: 5, filas: 5 },
+            { cliente: "EDUARDO JOSE BRAVO BRAVO", contratos: 5, filas: 5 },
+            { cliente: "PROYECTO ERP", contratos: 5, filas: 5 },
+            { cliente: "LYNA NAYLET SIERRA RAMIREZ", contratos: 5, filas: 5 },
+            { cliente: "JOSE JAVIER LEON JUAREZ", contratos: 5, filas: 5 },
+            { cliente: "JOSE DAVID SOSA", contratos: 5, filas: 5 },
+            { cliente: "JUAN DE LA CRUZ RIOS RONDON", contratos: 5, filas: 5 },
+            { cliente: "LINDA ESTHER PALENCIA DE BUSTAMANTE", contratos: 5, filas: 5 },
+            { cliente: "BIRNA JANETT AVENDANO", contratos: 5, filas: 5 }
+        ];
+
+        // --- Distribución ---
+        const distribucion = [
+            { rango: "1 contrato", cantidad: 1081, pct: 65.9 },
+            { rango: "2 contratos", cantidad: 268, pct: 16.3 },
+            { rango: "3 contratos", cantidad: 137, pct: 8.4 },
+            { rango: "4 contratos", cantidad: 73, pct: 4.5 },
+            { rango: "5 contratos", cantidad: 35, pct: 2.1 },
+            { rango: "6 contratos", cantidad: 14, pct: 0.9 },
+            { rango: "7 contratos", cantidad: 3, pct: 0.2 },
+            { rango: "8 contratos", cantidad: 5, pct: 0.3 },
+            { rango: "9 contratos", cantidad: 2, pct: 0.1 },
+            { rango: "10+ contratos", cantidad: 2, pct: 0.1 }
+        ];
+
+        // --- Datos temporales VIP (42 clientes con 5+ contratos) ---
+        const vipTemporal = [
+            { cliente: "FELIX EDEL LIMA DE LA SOTA", cont: 19, first: "2023-10-20", last: "2026-06-14", spanD: 968,
+            spanM: 31.8, freq: 54 },
+            { cliente: "GERARDO JOSE RAMIREZ F.", cont: 14, first: "2025-02-07", last: "2026-04-25", spanD: 442, spanM: 14.5,
+                freq: 34 },
+            { cliente: "SORELIS DEL CARMEN MORAN BOLANO", cont: 10, first: "2023-10-27", last: "2025-04-12", spanD: 533,
+                spanM: 17.5, freq: 59 },
+            { cliente: "JOSE GREGORIO VILLASMIL GUILLEN", cont: 9, first: "2023-09-22", last: "2025-12-04", spanD: 804,
+                spanM: 26.4, freq: 100 },
+            { cliente: "YAHVEH ELIANGE MARQUEZ CANCINE", cont: 9, first: "2024-07-17", last: "2026-03-01", spanD: 592,
+                spanM: 19.4, freq: 74 },
+            { cliente: "MARIA CLAUDIA DEL ROSARIO PEREZ PEREZ", cont: 8, first: "2023-09-11", last: "2026-03-26", spanD: 927,
+                spanM: 30.5, freq: 132 },
+            { cliente: "RUBISELA DEL VALLE MOYA GONZALEZ", cont: 8, first: "2024-05-09", last: "2025-12-12", spanD: 582,
+                spanM: 19.1, freq: 83 },
+            { cliente: "EVELYN YEANINE QUINTERO UZCATEGUI", cont: 8, first: "2023-11-12", last: "2026-06-12", spanD: 943,
+                spanM: 31.0, freq: 135 },
+            { cliente: "DANIEL J. RODRIGUEZ V.", cont: 8, first: "2025-09-19", last: "2026-05-24", spanD: 247, spanM: 8.1,
+                freq: 35 },
+            { cliente: "YONATHAN JOSE VIVAS CARRERO", cont: 8, first: "2026-03-20", last: "2026-06-27", spanD: 99, spanM: 3.3,
+                freq: 14 },
+            { cliente: "JOHAN ANTONIO MONTES PALMERA", cont: 7, first: "2024-03-22", last: "2025-08-28", spanD: 524,
+                spanM: 17.2, freq: 87 },
+            { cliente: "ROSMILA C. VALLADARES LOPEZ", cont: 7, first: "2024-02-14", last: "2025-05-15", spanD: 455, spanM: 14.9,
+                freq: 76 },
+            { cliente: "JAIRLEY N. DEL C. AMAYA MEZA", cont: 7, first: "2024-05-22", last: "2025-09-26", spanD: 492,
+                spanM: 16.2, freq: 82 },
+            { cliente: "OMAR ABRAHAM SALCEDO", cont: 6, first: "2024-08-08", last: "2026-02-06", spanD: 547, spanM: 18.0,
+                freq: 109 },
+            { cliente: "KARINA MOLINA VEGA", cont: 6, first: "2024-03-22", last: "2025-12-12", spanD: 630, spanM: 20.7,
+                freq: 126 },
+            { cliente: "FRANK A. VELASQUEZ HERNANDEZ", cont: 6, first: "2024-10-15", last: "2026-01-29", spanD: 471,
+                spanM: 15.5, freq: 94 },
+            { cliente: "LUIS EDUARDO UZCATEGUI", cont: 6, first: "2024-07-26", last: "2025-12-09", spanD: 501, spanM: 16.5,
+                freq: 100 },
+            { cliente: "CORY ESTEFANNY REINOZA MORENO", cont: 6, first: "2024-06-14", last: "2025-12-02", spanD: 536,
+                spanM: 17.6, freq: 107 },
+            { cliente: "LADY DIANA TORO RIVERA", cont: 6, first: "2025-03-31", last: "2026-06-18", spanD: 444, spanM: 14.6,
+                freq: 89 },
+            { cliente: "ALEXANDER J. GUTIERREZ VELIZ", cont: 6, first: "2025-01-17", last: "2026-03-11", spanD: 418, spanM: 13.7,
+                freq: 84 },
+            { cliente: "LEOMAR MAYELA VALERO RODRIGUEZ", cont: 6, first: "2024-08-22", last: "2025-10-13", spanD: 417,
+                spanM: 13.7, freq: 83 },
+            { cliente: "MARBELLYS RAMIREZ ROJAS", cont: 6, first: "2024-09-09", last: "2025-08-18", spanD: 343, spanM: 11.3,
+                freq: 69 },
+            { cliente: "CIPRIANO E. ALVARADO BLANCO", cont: 6, first: "2024-11-08", last: "2025-07-30", spanD: 264, spanM: 8.7,
+                freq: 53 },
+            { cliente: "OSMARA SOTO G", cont: 6, first: "2024-11-22", last: "2026-02-25", spanD: 460, spanM: 15.1, freq: 92 },
+            { cliente: "YUSMARY DEL VALLE PENA DUGARTE", cont: 6, first: "2024-11-08", last: "2025-08-27", spanD: 292,
+                spanM: 9.6, freq: 58 },
+            { cliente: "HOMERO JAVIER RIVAS VARELA", cont: 6, first: "2024-07-18", last: "2025-05-20", spanD: 306, spanM: 10.1,
+                freq: 61 },
+            { cliente: "JEAN CARLOS PUENTES GUILLEN", cont: 5, first: "2024-06-05", last: "2026-04-15", spanD: 679, spanM: 22.3,
+                freq: 170 },
+            { cliente: "ASESORES EMP. CAEMCA C.A", cont: 5, first: "2024-02-29", last: "2026-01-16", spanD: 687, spanM: 22.6,
+                freq: 172 },
+            { cliente: "SANTIAGO E. PRIETO PEREIRA", cont: 5, first: "2024-12-03", last: "2026-02-27", spanD: 451, spanM: 14.8,
+                freq: 113 },
+            { cliente: "MARY CARMEN MARCHAN GUTIERREZ", cont: 5, first: "2024-07-16", last: "2025-12-27", spanD: 529,
+                spanM: 17.4, freq: 132 },
+            { cliente: "SANDRO LUENGAS MARTINEZ", cont: 5, first: "2025-03-26", last: "2026-05-08", spanD: 408, spanM: 13.4,
+                freq: 102 },
+            { cliente: "ALEXIS Y LA VENEZUELA DE ANTIER C.A.", cont: 5, first: "2024-05-07", last: "2025-07-10", spanD: 429,
+                spanM: 14.1, freq: 107 },
+            { cliente: "JUAN CARLOS GUERRA FERNANDEZ", cont: 5, first: "2024-10-09", last: "2026-06-19", spanD: 618, spanM: 20.3,
+                freq: 155 },
+            { cliente: "LUIS ALEJANDRO ROJAS ARAQUE", cont: 5, first: "2024-07-16", last: "2026-03-04", spanD: 596, spanM: 19.6,
+                freq: 149 },
+            { cliente: "EDUARDO JOSE BRAVO BRAVO", cont: 5, first: "2024-03-08", last: "2026-06-29", spanD: 843, spanM: 27.7,
+                freq: 211 },
+            { cliente: "PROYECTO ERP", cont: 5, first: "2025-01-23", last: "2026-05-06", spanD: 468, spanM: 15.4, freq: 117 },
+            { cliente: "LYNA NAYLET SIERRA RAMIREZ", cont: 5, first: "2024-07-03", last: "2026-01-06", spanD: 552, spanM: 18.1,
+                freq: 138 },
+            { cliente: "JOSE JAVIER LEON JUAREZ", cont: 5, first: "2024-10-08", last: "2026-06-03", spanD: 603, spanM: 19.8,
+                freq: 151 },
+            { cliente: "JOSE DAVID SOSA", cont: 5, first: "2024-07-18", last: "2026-01-23", spanD: 554, spanM: 18.2, freq: 139 },
+            { cliente: "JUAN DE LA CRUZ RIOS RONDON", cont: 5, first: "2024-10-18", last: "2026-07-05", spanD: 625, spanM: 20.5,
+                freq: 156 },
+            { cliente: "LINDA E. PALENCIA DE BUSTAMANTE", cont: 5, first: "2023-12-14", last: "2026-01-21", spanD: 769,
+                spanM: 25.3, freq: 192 },
+            { cliente: "BIRNA JANETT AVENDANO", cont: 5, first: "2024-07-16", last: "2026-07-10", spanD: 724, spanM: 23.8,
+                freq: 181 }
+        ];
+
+        // --- Distribución por tiempo de relación ---
+        const relacionData = [
+            { label: "1-3 meses", count: 1 },
+            { label: "3-6 meses", count: 8 },
+            { label: "6-12 meses", count: 6 },
+            { label: "12-24 meses", count: 16 },
+            { label: "24+ meses", count: 11 }
+        ];
+
+        // ================================================================
+        //  METRICS GLOBALES
+        // ================================================================
+        const totalClientes = 1640;
+        const exactTotalContratos = 2456;
+        const promedio = (exactTotalContratos / totalClientes).toFixed(1);
+
+        document.getElementById("totalClientes").textContent = totalClientes.toLocaleString();
+        document.getElementById("totalContratos").textContent = exactTotalContratos.toLocaleString();
+        document.getElementById("promedio").textContent = promedio;
+        document.getElementById("maxContratos").textContent = "19";
+
+        document.getElementById("kpi1").textContent = "1,081";
+        document.getElementById("kpi2").textContent = "268";
+        document.getElementById("kpi3").textContent = "273";
+        document.getElementById("kpi4").textContent = "61";
+
+        document.getElementById("fechaGeneracion").textContent = new Date().toLocaleDateString("es-ES", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+
+        // ================================================================
+        //  METRICS TEMPORALES
+        // ================================================================
+        document.getElementById("tmpVipCount").textContent = vipTemporal.length;
+        const avgSpan = vipTemporal.reduce((s, c) => s + c.spanM, 0) / vipTemporal.length;
+        const avgFreq = vipTemporal.filter(c => c.freq > 0).reduce((s, c) => s + c.freq, 0) / vipTemporal.filter(c => c.freq >
+            0).length;
+        const maxSpan = Math.max(...vipTemporal.map(c => c.spanM));
+        document.getElementById("tmpAvgSpan").textContent = avgSpan.toFixed(1) + " m";
+        document.getElementById("tmpAvgFreq").textContent = Math.round(avgFreq) + " d";
+        document.getElementById("tmpMaxSpan").textContent = maxSpan.toFixed(1) + " m";
+
+        // ================================================================
+        //  CHARTS — Brand Colors
+        // ================================================================
+        const brand = {
+            primary: '#213C83',
+            primaryLight: '#3D6194',
+            accent: '#F98B10',
+            blueLight: '#4163A8',
+            gradient: ['#213C83', '#2a4a96', '#3458a8', '#3D6194', '#4a72a8', '#5a82b8', '#6a92c8', '#7aa2d4', '#8ab2e0',
+                '#9ac2ec'
+            ]
+        };
+
+        // --- Chart 1: Top 20 Horizontal ---
+        new Chart(document.getElementById('chartTop20'), {
+            type: 'bar',
+            data: {
+                labels: clientesData.slice(0, 20).map(c => c.cliente.length > 28 ? c.cliente.substring(0, 26) + '...' : c
+                    .cliente).reverse(),
+                datasets: [{
+                    data: clientesData.slice(0, 20).map(c => c.contratos).reverse(),
+                    backgroundColor: brand.gradient.slice(0, 20).reverse(),
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) =>
+                                `${ctx.parsed.x} contratos` } } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { stepSize: 2 } },
+                    y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                }
+            }
+        });
+
+        // --- Chart 2: Distribution ---
+        new Chart(document.getElementById('chartDist'), {
+            type: 'bar',
+            data: {
+                labels: distribucion.map(d => d.rango),
+                datasets: [{
+                    label: 'Clientes',
+                    data: distribucion.map(d => d.cantidad),
+                    backgroundColor: distribucion.map(d => d.cantidad >= 100 ? brand.primary : d.cantidad >= 10 ? brand
+                        .primaryLight : '#b0c4de'),
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) =>
+                                `${ctx.parsed.y} clientes (${distribucion[ctx.dataIndex].pct}%)` } }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }
+                }
+            }
+        });
+
+        // --- Chart 3: Doughnut ---
+        const pieLabels = ['1 contrato', '2 contratos', '3 contratos', '4 contratos', '5+ contratos'];
+        const pieData = [1081, 268, 137, 73, 61];
+        const pieColors = [brand.primary, brand.primaryLight, brand.blueLight, brand.accent, '#f8c384'];
+        new Chart(document.getElementById('chartPie'), {
+            type: 'doughnut',
+            data: {
+                labels: pieLabels.map((l, i) => `${l} (${pieData[i]})`),
+                datasets: [{ data: pieData, backgroundColor: pieColors, borderColor: '#fff', borderWidth: 3 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { font: { size: 13 }, padding: 15 } },
+                    tooltip: { callbacks: { label: (ctx) => {
+                                const t = pieData.reduce((a, b) => a + b, 0);
+                                return `${ctx.label} — ${ctx.parsed} clientes (${((ctx.parsed/t)*100).toFixed(1)}%)`;
+                            } } }
+                }
+            }
+        });
+
+        // ================================================================
+        //  CHARTS TEMPORALES
+        // ================================================================
+
+        // --- Timeline: barras apiladas first -> last por cliente ---
+        function buildTimelineChart(filtered) {
+            const labels = filtered.map(c => c.cliente.length > 25 ? c.cliente.substring(0, 23) + '...' : c.cliente);
+            const firstDates = filtered.map(c => new Date(c.first));
+            const lastDates = filtered.map(c => new Date(c.last));
+            // Calculate "offset" from a base date (min first date)
+            const base = new Date(Math.min(...firstDates));
+            const offsets = firstDates.map(d => Math.round((d - base) / (1000 * 60 * 60 * 24)));
+            const spans = filtered.map((c, i) => {
+                const d1 = new Date(c.first),
+                    d2 = new Date(c.last);
+                return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+            });
+
+            return {
+                labels: labels.reverse(),
+                offsets: offsets.reverse(),
+                spans: spans.reverse(),
+                base: base
+            };
+        }
+
+        let timelineChart = null;
+
+        function renderTimeline(data) {
+            const tl = buildTimelineChart(data);
+            const ctx = document.getElementById('chartTimeline');
+
+            if (timelineChart) timelineChart.destroy();
+
+            // Build dataset: each client is a stacked bar: [offset, span]
+            const dataset1 = tl.offsets;
+            const dataset2 = tl.spans;
+
+            const totalDays = Math.max(...tl.offsets.map((o, i) => o + tl.spans[i]));
+
+            timelineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: tl.labels,
+                    datasets: [{
+                        label: 'Offset desde base',
+                        data: dataset1,
+                        backgroundColor: 'rgba(33,60,131,0.15)',
+                        borderRadius: 0,
+                        barPercentage: 0.7
+                    }, {
+                        label: 'Período activo',
+                        data: dataset2,
+                        backgroundColor: brand.accent,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    stacked: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    if (ctx.datasetIndex === 0) return `Inicio: ${data[data.length-1-ctx.dataIndex].first}`;
+                                    const d = data[data.length - 1 - ctx.dataIndex];
+                                    return `${d.first} → ${d.last} (${d.spanM} meses, ${d.cont} contratos)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: { display: true, text: 'Días desde ' + tl.base.toISOString().split('T')[0],
+                                font: { size: 10 } },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        },
+                        y: { stacked: true, grid: { display: false }, ticks: { font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        // --- Relación chart ---
+        new Chart(document.getElementById('chartRelacion'), {
+            type: 'bar',
+            data: {
+                labels: relacionData.map(d => d.label),
+                datasets: [{
+                    label: 'Clientes VIP',
+                    data: relacionData.map(d => d.count),
+                    backgroundColor: ['#b0c4de', '#6a92c8', '#3D6194', '#213C83', brand.accent],
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y} clientes VIP` } }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { stepSize: 2 } }
+                }
+            }
+        });
+
+        // ================================================================
+        //  FILTRO DE FECHAS
+        // ================================================================
+        let filteredVipData = [...vipTemporal];
+
+        function aplicarFiltroFechas() {
+            const desde = document.getElementById('fechaDesde').value;
+            const hasta = document.getElementById('fechaHasta').value;
+
+            filteredVipData = vipTemporal.filter(c => {
+                const d = new Date(c.first);
+                if (desde && d < new Date(desde)) return false;
+                if (hasta && d > new Date(hasta)) return false;
+                return true;
+            });
+
+            if (filteredVipData.length === 0) {
+                document.getElementById('filtroInfo').textContent = '⚠ Sin resultados para ese rango';
+                document.getElementById('tbodyTemporal').innerHTML =
+                    '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">Sin clientes en este rango de fechas</td></tr>';
+                if (timelineChart) timelineChart.destroy();
+                return;
+            }
+
+            document.getElementById('filtroInfo').textContent =
+                `Mostrando ${filteredVipData.length} de ${vipTemporal.length} clientes VIP`;
+            renderTimeline(filteredVipData);
+            renderTemporalTable(filteredVipData);
+        }
+
+        function resetFiltroFechas() {
+            document.getElementById('fechaDesde').value = '';
+            document.getElementById('fechaHasta').value = '';
+            filteredVipData = [...vipTemporal];
+            document.getElementById('filtroInfo').textContent = 'Mostrando todos los períodos';
+            renderTimeline(filteredVipData);
+            renderTemporalTable(filteredVipData);
+        }
+
+        // ================================================================
+        //  TABLA TEMPORAL
+        // ================================================================
+        function renderTemporalTable(data) {
+            const tbody = document.getElementById('tbodyTemporal');
+            if (!data.length) {
+                tbody.innerHTML =
+                '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">Sin datos</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map((c, i) => `
+                <tr class="${i < 3 ? 'top-client' : ''} ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : ''}">
+                    <td><strong>${i+1}</strong></td>
+                    <td>${c.cliente}</td>
+                    <td><strong>${c.cont}</strong></td>
+                    <td>${c.first}</td>
+                    <td>${c.last}</td>
+                    <td>${c.spanD}</td>
+                    <td>${c.spanM}</td>
+                    <td>${c.freq}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ================================================================
+        //  TABS
+        // ================================================================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.includes(
+            tab === 'resumen' ? 'Resumen' : tab === 'temporal' ? 'Temporal' : 'Listado'));
+            if (btn) btn.classList.add('active');
+
+            document.getElementById('tab-' + tab).classList.add('active');
+
+            // Refresh charts if needed (for visibility)
+            if (tab === 'temporal') {
+                // Re-render timeline (needed if canvas was hidden)
+                setTimeout(() => {
+                    if (timelineChart) timelineChart.resize();
+                }, 100);
+            }
+        }
+
+        // ================================================================
+        //  TABLA PRINCIPAL (con paginación)
+        // ================================================================
+        const PAGE_SIZE = 25;
+        let currentPage = 1;
+        let sortColumn = 2;
+        let sortDesc = true;
+        let filteredData = [...clientesData];
+
+        function getCategory(c) {
+            if (c >= 10) return { label: 'VIP ★', cls: 'badge-gold' };
+            if (c >= 7) return { label: 'Premium', cls: 'badge-silver' };
+            if (c >= 5) return { label: 'Frecuente', cls: 'badge-bronze' };
+            if (c >= 3) return { label: 'Regular', cls: 'badge-blue' };
+            return { label: 'Ocasional', cls: 'badge-gray' };
+        }
+
+        function filterTable() {
+            const term = document.getElementById('searchInput').value.toUpperCase();
+            filteredData = term ? clientesData.filter(c => c.cliente.toUpperCase().includes(term)) : [...clientesData];
+            currentPage = 1;
+            renderTable();
+        }
+
+        function sortTable(col) {
+            if (sortColumn === col) sortDesc = !sortDesc;
+            else { sortColumn = col;
+                sortDesc = col === 2; }
+            document.querySelectorAll('thead th').forEach((th, i) => {
+                th.classList.toggle('sorted', i === col);
+                const icon = th.querySelector('.sort-icon');
+                if (icon) icon.textContent = i === col ? (sortDesc ? '\u25BC' : '\u25B2') : '\u21FF';
+            });
+            const key = [c => c.contratos, c => c.cliente, c => c.contratos, c => c.filas, c => c.contratos][col];
+            filteredData.sort((a, b) => {
+                const va = key(a),
+                    vb = key(b);
+                return typeof va === 'number' ? (sortDesc ? vb - va : va - vb) :
+                    sortDesc ? String(vb).localeCompare(va) : String(va).localeCompare(vb);
+            });
+            currentPage = 1;
+            renderTable();
+        }
+
+        function changePage(delta) {
+            const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+            const np = currentPage + delta;
+            if (np < 1 || np > totalPages) return;
+            currentPage = np;
+            renderTable();
+        }
+
+        function renderTable() {
+            const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, filteredData.length);
+            const pageData = filteredData.slice(start, end);
+
+            document.getElementById('totalRows').textContent = filteredData.length;
+            document.getElementById('showing').textContent = filteredData.length;
+            document.getElementById('pageInfo').textContent = `Página ${currentPage} / ${Math.max(1, totalPages)}`;
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+            const tbody = document.getElementById('tableBody');
+            if (!pageData.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;padding:30px;color:#999;">No se encontraron clientes</td></tr>';
+                return;
+            }
+            tbody.innerHTML = pageData.map((c, i) => {
+                const ri = start + i + 1;
+                const cat = getCategory(c.contratos);
+                const r = ri === 1 ? 'rank-1' : ri === 2 ? 'rank-2' : ri === 3 ? 'rank-3' : '';
+                const t = ri <= 3 ? 'top-client' : '';
+                return `<tr class="${r} ${t}">
+                    <td><strong>${ri}</strong></td>
+                    <td>${c.cliente}</td>
+                    <td><strong>${c.contratos}</strong></td>
+                    <td>${c.filas}</td>
+                    <td><span class="badge ${cat.cls}">${cat.label}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ================================================================
+        //  INIT
+        // ================================================================
+        renderTable();
+        renderTimeline(vipTemporal);
+        renderTemporalTable(vipTemporal);
+
+        // Set default date range to show all data
+        const minDate = vipTemporal.reduce((m, c) => c.first < m ? c.first : m, vipTemporal[0].first);
+        const maxDate = vipTemporal.reduce((m, c) => c.last > m ? c.last : m, vipTemporal[0].last);
+        document.getElementById('fechaDesde').value = minDate;
+        document.getElementById('fechaHasta').value = maxDate;
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Data files with sensitive client info
+raw_data.csv
+contratos_por_cliente.csv
+analisis_temporal_vip.csv
+
+# Generated images
+*.png
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Opencode config
+.opencode/
+
+# OS files
+.DS_Store
+Thumbs.db
