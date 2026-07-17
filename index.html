@@ -36,6 +36,14 @@
         .header-meta .meta-item { background: rgba(255,255,255,0.12); padding: 7px 14px; border-radius: 10px; text-align: center; min-width: 90px; }
         .header-meta .meta-item strong { display: block; font-size: 18px; color: var(--accent); }
         .header-meta .meta-item span { font-size: 9px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.3px; }
+        .header-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; background: rgba(255,255,255,0.08); border-radius: 10px; margin-top: 6px; }
+        .header-filter label { font-size: 11px; color: rgba(255,255,255,0.7); font-weight: 600; }
+        .header-filter input[type=date] { padding: 4px 8px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-size: 11px; background: rgba(255,255,255,0.9); }
+        .header-filter .btn-filtrar { padding: 4px 14px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .header-filter .btn-filtrar:hover { background: #e07d00; }
+        .header-filter .btn-reset { padding: 4px 10px; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-size: 11px; cursor: pointer; }
+        .header-filter .btn-reset:hover { background: rgba(255,255,255,0.25); }
+        .header-filter .filtro-info { font-size: 10px; color: var(--accent); font-weight: 600; }
 
         .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
         .kpi-card { background: var(--white); border-radius: 14px; padding: 16px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); text-align: center; border-top: 4px solid var(--primary-light); transition: transform 0.2s; }
@@ -155,6 +163,15 @@
                 <div class="meta-item"><strong id="hPendiente">—</strong><span>Pendiente</span></div>
             </div>
         </div>
+        <div class="header-filter">
+            <label>📅 Filtrar por fecha:</label>
+            <input type="date" id="filtroFechaDesde">
+            <span style="color:rgba(255,255,255,0.5);font-size:11px">→</span>
+            <input type="date" id="filtroFechaHasta">
+            <button class="btn-filtrar" onclick="aplicarFiltroGlobal()">Aplicar</button>
+            <button class="btn-reset" onclick="resetFiltroGlobal()">Limpiar</button>
+            <span class="filtro-info" id="filtroInfoGlobal"></span>
+        </div>
     </div>
 
     <div class="tabs">
@@ -240,14 +257,6 @@
             <div class="kpi-card"><div class="number" id="tmpAvgFreq">—</div><div class="label">Frecuencia entre compras (días)</div></div>
             <div class="kpi-card accent"><div class="number" id="tmpMaxSpan">—</div><div class="label">Mayor antigüedad (meses)</div></div>
         </div>
-        <div class="filtros-card">
-            <label>📅 Filtrar por rango de fechas:</label>
-            <div class="filtro-group"><span>Desde:</span><input type="date" id="fechaDesde"></div>
-            <div class="filtro-group"><span>Hasta:</span><input type="date" id="fechaHasta"></div>
-            <button class="btn-filtrar" onclick="aplicarFiltroFechas()">Aplicar</button>
-            <button class="btn-reset" onclick="resetFiltroFechas()">Limpiar</button>
-            <span class="filtro-info" id="filtroInfo">Mostrando todos</span>
-        </div>
         <div class="charts-row">
             <div class="chart-card"><h3>⏱ Línea de Tiempo — Clientes VIP</h3><div class="chart-container"><canvas id="chartTimeline"></canvas></div></div>
             <div class="chart-card"><h3>📆 Distribución por Tiempo de Relación</h3><div class="chart-container"><canvas id="chartRelacion"></canvas></div></div>
@@ -317,7 +326,42 @@ if (!DATA) {
     throw new Error('DATA parse failed');
 }
 
-const clientes = DATA.clients;
+// Global date filter via URL hash
+function getFilteredClientes() {
+    const p = new URLSearchParams(window.location.hash.replace('#',''));
+    const desde = p.get('desde');
+    const hasta = p.get('hasta');
+    const all = DATA.clients;
+    if (!desde && !hasta) return all;
+    return all.filter(c => {
+        if (desde && (c.last_date||'') < desde) return false;
+        if (hasta && (c.first_date||'') > hasta) return false;
+        return true;
+    });
+}
+
+function aplicarFiltroGlobal() {
+    const d = document.getElementById('filtroFechaDesde').value;
+    const h = document.getElementById('filtroFechaHasta').value;
+    const p = new URLSearchParams();
+    if (d) p.set('desde', d);
+    if (h) p.set('hasta', h);
+    window.location.hash = p.toString();
+    location.reload();
+}
+
+function resetFiltroGlobal() {
+    window.location.hash = '';
+    location.reload();
+}
+
+const fullClientes = DATA.clients;
+const hashParams = new URLSearchParams(window.location.hash.replace('#',''));
+if (hashParams.get('desde')) document.getElementById('filtroFechaDesde').value = hashParams.get('desde');
+if (hashParams.get('hasta')) document.getElementById('filtroFechaHasta').value = hashParams.get('hasta');
+document.getElementById('filtroInfoGlobal').textContent = hashParams.get('desde')||hashParams.get('hasta') ? 'Filtrando por fecha' : '';
+
+let clientes = getFilteredClientes();
 const statusSummary = DATA.status_summary;
 const segmentStats = DATA.segment_stats;
 const last200 = DATA.last200;
@@ -675,13 +719,6 @@ function updateTemporalUI(data) {
     renderTemporalTable(data);
 }
 
-// Set date range
-const allDates = clientes.filter(c=>c.first_date).map(c=>c.first_date).concat(clientes.filter(c=>c.last_date).map(c=>c.last_date));
-const minDate = allDates.length ? allDates.reduce((a,b)=>a<b?a:b) : '2023-01-01';
-const maxDate = allDates.length ? allDates.reduce((a,b)=>a>b?a:b) : '2026-12-31';
-document.getElementById('fechaDesde').value = minDate;
-document.getElementById('fechaHasta').value = maxDate;
-
 // Relationship chart
 const relacionData = [
     {label:'1-3 meses', count: vipClients.filter(c => {const d=(new Date(c.last)-new Date(c.first))/86400000/30.44; return d>=1 && d<3;}).length},
@@ -697,33 +734,6 @@ safeChart('chartRelacion', {
 });
 
 updateTemporalUI(vipClients);
-
-// Date filters
-function aplicarFiltroFechas() {
-    const desde = document.getElementById('fechaDesde').value;
-    const hasta = document.getElementById('fechaHasta').value;
-    filteredVip = vipClients.filter(c => {
-        if (desde && c.first < desde) return false;
-        if (hasta && c.last > hasta) return false;
-        return true;
-    });
-    if (!filteredVip.length) {
-        document.getElementById('filtroInfo').textContent = '⚠ Sin resultados';
-        document.getElementById('tbodyTemporal').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">Sin clientes en este rango</td></tr>';
-        if (timelineChart) timelineChart.destroy();
-        return;
-    }
-    document.getElementById('filtroInfo').textContent = 'Mostrando '+filteredVip.length+' de '+vipClients.length+' VIP';
-    updateTemporalUI(filteredVip);
-}
-
-function resetFiltroFechas() {
-    document.getElementById('fechaDesde').value = '';
-    document.getElementById('fechaHasta').value = '';
-    filteredVip = [...vipClients];
-    document.getElementById('filtroInfo').textContent = 'Mostrando todos';
-    updateTemporalUI(filteredVip);
-}
 
 // ================================================================
 //  TABLE
