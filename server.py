@@ -80,18 +80,18 @@ def fetch_data():
             'total': total,
             'pagado': max(pagado, 0),
             'fecha': str(r.get('invoice_date') or ''),
-            'trabajador': str(r.get('x_work_profesional') or 'desconocido'),
+            'trabajador': str(r.get('x_work_profesional') or ''),
             'status': status_key,
         })
     
-    # Clasificar trabajador
-    def classify_worker(tipo):
-        tl = tipo.lower().strip()
-        if 'independ' in tl or 'informal' in tl: return 'Independiente'
-        if 'publico' in tl: return 'Sector público'
-        if 'privado' in tl: return 'Sector privado'
-        if 'depend' in tl or 'bajo_dependencia' in tl: return 'Dependientes'
-        return 'No clasificado'
+    # Clasificar trabajador: muestra el valor real de Odoo, solo corrige typo
+    def normalize_worker(tipo):
+        tl = tipo.lower().strip() if tipo else ''
+        if not tl or tl == 'vacio' or tl == 'false':
+            return 'Sin clasificar'
+        if tl == 'infdependiente_informal':
+            return 'independiente_informal'
+        return tl
     
     # Agregar por cliente
     clients_dict = defaultdict(lambda: {
@@ -118,8 +118,8 @@ def fetch_data():
         prom = round(c_data['facturado'] / c_data['contratos'], 2) \
                if c_data['contratos'] else 0
         wt = c_data['worker_types'].most_common(1)[0][0] \
-             if c_data['worker_types'] else 'No clasificado'
-        worker = classify_worker(wt)
+             if c_data['worker_types'] else 'Sin clasificar'
+        worker = normalize_worker(wt)
         dist[c_data['contratos']] += 1
         seg_stats[worker]['clientes'] += 1
         seg_stats[worker]['contratos'] += c_data['contratos']
@@ -143,7 +143,7 @@ def fetch_data():
     last_200 = rows[:200]
     last200_seg = Counter()
     for r in last_200:
-        last200_seg[classify_worker(r['trabajador'])] += 1
+        last200_seg[normalize_worker(r['trabajador'])] += 1
     
     # VIP (5+ contratos)
     vip_clients = [c for c in client_list if c['contratos'] >= 5]
