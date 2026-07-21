@@ -569,21 +569,22 @@ function resetFiltrosMontos() {
     // KPI cards
     const kpiRow = document.getElementById('segmentKpis');
     kpiRow.innerHTML = segKeys.map(s => `
-        <div class="kpi-card" style="border-top-color:${segColors[s]||'#999'};cursor:pointer" onclick="filterBySegment('${s}')" title="Ver clientes de ${s}">
-            <div class="number">${segmentStats[s].clientes}</div>
+        <div class="kpi-card" style="border-top-color:${segColors[s]||'#999'};cursor:pointer" onclick="filterBySegment('${s}')" title="Ver facturas de ${s}">
+            <div class="number">${segmentStats[s].contratos}</div>
             <div class="label">${s}</div>
-            <div style="font-size:10px;color:#888;margin-top:4px">${segmentStats[s].contratos} contratos - ${fmtMoney(segmentStats[s].facturado)}</div>
+            <div style="font-size:10px;color:#888;margin-top:4px">${segmentStats[s].clientes} clientes - ${fmtMoney(segmentStats[s].facturado)}</div>
         </div>
     `).join('');
 
-    // Pie chart
+    // Pie chart (facturas)
+    const totalFacturas = segKeys.reduce((a,s)=>a+segmentStats[s].contratos, 0);
     safeChart('chartSegPie', {
         type:'doughnut',
         data:{
-            labels:segKeys.map(s=>s+' ('+segmentStats[s].clientes+')'),
-            datasets:[{data:segKeys.map(s=>segmentStats[s].clientes), backgroundColor:segKeys.map(s=>segColors[s]||'#9ca3af'), borderColor:'#fff', borderWidth:3}]
+            labels:segKeys.map(s=>s+' ('+segmentStats[s].contratos+')'),
+            datasets:[{data:segKeys.map(s=>segmentStats[s].contratos), backgroundColor:segKeys.map(s=>segColors[s]||'#9ca3af'), borderColor:'#fff', borderWidth:3}]
         },
-        options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{font:{size:12}}}, tooltip:{callbacks:{label:ctx=>ctx.label+' — '+((ctx.parsed/(segKeys.reduce((a,s)=>a+segmentStats[s].clientes,0)))*100).toFixed(1)+'%'}}}}
+        options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{font:{size:12}}}, tooltip:{callbacks:{label:ctx=>ctx.label+' — '+((ctx.parsed/totalFacturas)*100).toFixed(1)+'%'}}}}
     });
 
     // Facturado bar
