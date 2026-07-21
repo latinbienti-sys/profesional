@@ -736,7 +736,7 @@ function resetFiltrosMontos() {{
 // ================================================================
 (function() {{
     const segKeys = Object.keys(segmentStats);
-    const segColors = {{'Dependientes':'#213C83','Independiente':'#F98B10','Sector público':'#10b981','Sector privado':'#ef4444','No clasificado':'#9ca3af'}};
+    const segColors = {{'bajo_dependencia':'#213C83','independiente':'#F98B10','dependiente_publico':'#10b981','independiente_formal':'#F59E0B','dependiente_privado':'#ef4444','independiente_informal':'#f97316','Sin clasificar':'#9ca3af'}};
 
     // KPI cards
     const kpiRow = document.getElementById('segmentKpis');
