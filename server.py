@@ -196,8 +196,10 @@ def build_html(data):
     json_str = json.dumps(data, ensure_ascii=False)
     json_escaped = json_str.replace('\\', '\\\\').replace("'", "\\'")
     
-    html = tpl.replace('{json_escaped}', json_escaped)
-    html = html.replace('{{', '{').replace('}}', '}')
+    # Primero desescapar {{ y }} del template (f-string literal braces)
+    tpl_unescaped = tpl.replace('{{', '{').replace('}}', '}')
+    # Luego insertar el JSON (para que no se dañe si contiene }} o {{)
+    html = tpl_unescaped.replace('{json_escaped}', json_escaped)
     return html
 
 # ── Cache ────────────────────────────────────────────────────────
