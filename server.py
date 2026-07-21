@@ -14,8 +14,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 # ── Configuración Odoo ──────────────────────────────────────────
 ODOO_URL = 'https://latinbien.com'
 ODOO_DB = 'erp_production'
-ODOO_USER = 'latinbienti@latinbien.com'
-ODOO_PASS = 'z+cakaSe2805*'
+ODOO_USER = os.environ.get('ODOO_USER', 'latinbienti@latinbien.com')
+ODOO_PASS = os.environ.get('ODOO_PASS', 'z+cakaSe2805*')
 
 # Statuses que incluimos (Entregado, Aprobado, Cancelación Total)
 TARGET_STATUSES = ['6', '4', '8']
@@ -239,6 +239,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
         print(f'[{self.address_string()}] {format % args}', file=sys.stderr)
 
 if __name__ == '__main__':
+    # Modo --generate: solo genera index.html y sale (para GitHub Actions)
+    if '--generate' in sys.argv:
+        OUTPUT = os.path.join(os.path.dirname(__file__), 'index.html')
+        print(f'Generando {OUTPUT}...')
+        try:
+            data = fetch_data()
+            html = build_html(data)
+            with open(OUTPUT, 'w', encoding='utf-8') as f:
+                f.write(html)
+            print(f'OK - {data["client_count"]} clientes, '
+                  f'{sum(data["status_counts"].values())} facturas emitidas')
+            print(f'Escrito: {OUTPUT} ({os.path.getsize(OUTPUT)} bytes)')
+        except Exception as e:
+            print(f'ERROR: {e}')
+            sys.exit(1)
+        sys.exit(0)
+    
     PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     
     print('='*55)

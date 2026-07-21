@@ -1,0 +1,38 @@
+name: Actualizar Dashboard
+
+on:
+  schedule:
+    # Cada hora (minuto 0)
+    - cron: '0 * * * *'
+  workflow_dispatch:  # También se puede ejecutar manualmente desde GitHub
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Generar dashboard desde Odoo
+        env:
+          ODOO_USER: ${{ secrets.ODOO_USER }}
+          ODOO_PASS: ${{ secrets.ODOO_PASS }}
+        run: |
+          python server.py --generate
+
+      - name: Commit y push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --quiet && git diff --staged --quiet || git commit -m "Dashboard actualizado $(date -u '+%Y-%m-%d %H:00 UTC')"
+          git push
