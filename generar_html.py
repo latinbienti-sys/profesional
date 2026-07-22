@@ -502,8 +502,8 @@ if (!DATA) {{
     throw new Error('DATA parse failed');
 }}
 
-// Token para actualización manual (solo Actions:Write en este repo)
-var GITHUB_TOKEN = 'TU_TOKEN_AQUI';
+// Token: lo guardas en localStorage (solo en tu navegador), nunca en el código
+var GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
 
 // Global date filter via URL hash
 function getFilteredClientes() {{
@@ -535,21 +535,20 @@ function resetFiltroGlobal() {{
 }}
 
 function actualizarDashboard(btn) {{
+    if (!GITHUB_TOKEN) {{
+        const token = prompt('Pega tu token de GitHub (solo Actions:Write):');
+        if (!token) return;
+        localStorage.setItem('gh_token', token);
+        GITHUB_TOKEN = token;
+    }}
+
     btn.classList.add('loading');
     btn.textContent = '⏳ Actualizando...';
-
-    const token = GITHUB_TOKEN;
-    if (!token || token === 'TU_TOKEN_AQUI') {{
-        btn.textContent = '⚠️ Token no configurado';
-        btn.classList.remove('loading');
-        setTimeout(() => {{ btn.textContent = '🔄 Actualizar'; }}, 3000);
-        return;
-    }}
 
     fetch('https://api.github.com/repos/latinbienti-sys/profesional/actions/workflows/update-dashboard.yml/dispatches', {{
         method: 'POST',
         headers: {{
-            'Authorization': 'Bearer ' + token,
+            'Authorization': 'Bearer ' + GITHUB_TOKEN,
             'Accept': 'application/vnd.github.v3+json',
             'Content-Type': 'application/json'
         }},
@@ -559,6 +558,12 @@ function actualizarDashboard(btn) {{
         if (res.status === 204) {{
             btn.textContent = '✅ Actualizando...';
             setTimeout(() => {{ location.reload(); }}, 8000);
+        }} else if (res.status === 401 || res.status === 403) {{
+            localStorage.removeItem('gh_token');
+            GITHUB_TOKEN = '';
+            btn.textContent = '❌ Token inválido';
+            btn.classList.remove('loading');
+            setTimeout(() => {{ btn.textContent = '🔄 Actualizar'; }}, 3000);
         }} else {{
             btn.textContent = '❌ Error ' + res.status;
             btn.classList.remove('loading');
