@@ -505,18 +505,53 @@ if (!DATA) {{
 // Token: lo guardas en localStorage (solo en tu navegador), nunca en el código
 var GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
 
-// Global date filter via URL hash
+// Global date filter via URL hash — filtra FACTURAS (no clientes)
+var filteredInvoices = null; // invoices después de aplicar filtro de fecha
+
 function getFilteredClientes() {{
     const p = new URLSearchParams(window.location.hash.replace('#',''));
     const desde = p.get('desde');
     const hasta = p.get('hasta');
     const all = DATA.clients;
-    if (!desde && !hasta) return all;
-    return all.filter(c => {{
-        if (desde && (c.last_date||'') < desde) return false;
-        if (hasta && (c.first_date||'') > hasta) return false;
+    if (!desde && !hasta) {{
+        filteredInvoices = null;
+        return all;
+    }}
+    // Filtrar facturas por fecha exacta
+    const invs = DATA.invoices.filter(inv => {{
+        if (!inv.fecha) return false;
+        if (desde && inv.fecha < desde) return false;
+        if (hasta && inv.fecha > hasta) return false;
         return true;
     }});
+    filteredInvoices = invs;
+    
+    // Reconstruir clientes desde las facturas filtradas
+    const clientMap = {{}};
+    invs.forEach(inv => {{
+        const nom = inv.cliente || '(sin nombre)';
+        if (!clientMap[nom]) {{
+            clientMap[nom] = {{ contratos: 0, facturado: 0, cobrado: 0, saldo: 0, prom: 0 }};
+        }}
+        clientMap[nom].contratos += 1;
+        clientMap[nom].facturado += inv.total;
+        clientMap[nom].cobrado += inv.pagado;
+    }});
+    const result = Object.keys(clientMap).map(nom => ({{
+        cliente: nom,
+        contratos: clientMap[nom].contratos,
+        facturado: clientMap[nom].facturado,
+        cobrado: clientMap[nom].cobrado,
+        saldo: clientMap[nom].facturado - clientMap[nom].cobrado,
+        prom: clientMap[nom].facturado / clientMap[nom].contratos,
+        // Los filtros de segmento/tipo se deshabilitan con fecha activa
+        worker_type: '',
+        segmento: '',
+        first_date: '',
+        last_date: '',
+    }}));
+    result.sort((a,b) => b.contratos - a.contratos);
+    return result;
 }}
 
 function aplicarFiltroGlobal() {{
@@ -581,7 +616,6 @@ const fullClientes = DATA.clients;
 const hashParams = new URLSearchParams(window.location.hash.replace('#',''));
 if (hashParams.get('desde')) document.getElementById('filtroFechaDesde').value = hashParams.get('desde');
 if (hashParams.get('hasta')) document.getElementById('filtroFechaHasta').value = hashParams.get('hasta');
-document.getElementById('filtroInfoGlobal').textContent = hashParams.get('desde')||hashParams.get('hasta') ? 'Filtrando por fecha' : '';
 
 let clientes = getFilteredClientes();
 const statusSummary = DATA.status_summary;
@@ -627,10 +661,20 @@ const totalFact = clientes.reduce((s,c) => s + c.facturado, 0);
 const totalCob = clientes.reduce((s,c) => s + c.cobrado, 0);
 const totalPen = totalFact - totalCob;
 
-document.getElementById("hClientes").textContent = fmtNum(clientes.length);
-document.getElementById("hContratos").textContent = fmtNum(clientes.reduce((s,c) => s + c.contratos, 0));
-document.getElementById("hFacturado").textContent = fmtMoney(totalFact);
-document.getElementById("hPendiente").textContent = fmtMoney(totalPen);
+// Si hay filtro por fecha, mostrar facturas en vez de contratos
+const hasFilter = window.location.hash.includes('desde') || window.location.hash.includes('hasta');
+if (hasFilter && filteredInvoices) {{
+    document.getElementById("hClientes").textContent = fmtNum(clientes.length);
+    document.getElementById("hContratos").textContent = fmtNum(filteredInvoices.length) + ' facturas';
+    document.getElementById("hFacturado").textContent = fmtMoney(totalFact);
+    document.getElementById("hPendiente").textContent = fmtMoney(totalPen);
+    document.getElementById("filtroInfoGlobal").textContent = filteredInvoices.length + ' facturas en rango';
+}} else {{
+    document.getElementById("hClientes").textContent = fmtNum(clientes.length);
+    document.getElementById("hContratos").textContent = fmtNum(clientes.reduce((s,c) => s + c.contratos, 0));
+    document.getElementById("hFacturado").textContent = fmtMoney(totalFact);
+    document.getElementById("hPendiente").textContent = fmtMoney(totalPen);
+}}
 
 const c1 = clientes.filter(c => c.contratos === 1).length;
 const c2 = clientes.filter(c => c.contratos === 2).length;
@@ -642,7 +686,13 @@ document.getElementById("kpi3").textContent = fmtNum(c3);
 document.getElementById("kpi4").textContent = fmtNum(c5);
 
 document.getElementById("mkpiClientes").textContent = fmtNum(clientes.length);
-document.getElementById("mkpiContratos").textContent = fmtNum(clientes.reduce((s,c) => s + c.contratos, 0));
+if (hasFilter && filteredInvoices) {{
+    document.getElementById("mkpiContratos").textContent = fmtNum(filteredInvoices.length) + ' facturas';
+    document.getElementById("filtroInfoMontos").textContent = filteredInvoices.length + ' facturas en rango';
+}} else {{
+    document.getElementById("mkpiContratos").textContent = fmtNum(clientes.reduce((s,c) => s + c.contratos, 0));
+    document.getElementById("filtroInfoMontos").textContent = 'Mostrando todos';
+}}
 document.getElementById("mkpiFacturado").textContent = fmtMoney(totalFact);
 document.getElementById("mkpiCobrado").textContent = fmtMoney(totalCob);
 document.getElementById("mkpiPendiente").textContent = fmtMoney(totalPen);

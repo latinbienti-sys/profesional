@@ -153,6 +153,18 @@ def fetch_data():
     all_ids = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
                                  'search_count', [[['move_type', '=', 'out_invoice']]])
     
+    # Preparar facturas individuales para filtro por fecha
+    invoices = []
+    for r in rows:
+        invoices.append({
+            'fecha': r['fecha'],
+            'total': r['total'],
+            'pagado': r['pagado'],
+            'cliente': r['cliente'],
+            'status': r['status'],
+            'trabajador': r['trabajador'],
+        })
+    
     return {
         'status_summary': dict(status_counter.most_common()),
         'total_rows': all_ids,
@@ -167,6 +179,7 @@ def fetch_data():
             'Cancelacion Total': status_counter.get('8. CANCELACION TOTAL', 0),
         },
         'clients': client_list,
+        'invoices': invoices,  # Para filtro por fecha preciso
         'segment_stats': {s: dict(v)
                           for s, v in sorted(seg_stats.items(),
                                              key=lambda x: -x[1]['contratos'])},
