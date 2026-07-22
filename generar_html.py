@@ -502,6 +502,9 @@ if (!DATA) {{
     throw new Error('DATA parse failed');
 }}
 
+// Token para actualización manual (solo Actions:Write en este repo)
+var GITHUB_TOKEN = 'TU_TOKEN_AQUI';
+
 // Global date filter via URL hash
 function getFilteredClientes() {{
     const p = new URLSearchParams(window.location.hash.replace('#',''));
@@ -534,14 +537,39 @@ function resetFiltroGlobal() {{
 function actualizarDashboard(btn) {{
     btn.classList.add('loading');
     btn.textContent = '⏳ Actualizando...';
-    
-    // Abrir Actions para ejecutar manualmente
-    window.open('https://github.com/latinbienti-sys/profesional/actions', '_blank');
-    
-    // Recargar la página después de 5s (por si ya se actualizó)
-    setTimeout(() => {{
-        location.reload();
-    }}, 5000);
+
+    const token = GITHUB_TOKEN;
+    if (!token || token === 'TU_TOKEN_AQUI') {{
+        btn.textContent = '⚠️ Token no configurado';
+        btn.classList.remove('loading');
+        setTimeout(() => {{ btn.textContent = '🔄 Actualizar'; }}, 3000);
+        return;
+    }}
+
+    fetch('https://api.github.com/repos/latinbienti-sys/profesional/actions/workflows/update-dashboard.yml/dispatches', {{
+        method: 'POST',
+        headers: {{
+            'Authorization': 'Bearer ' + token,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        }},
+        body: JSON.stringify({{ ref: 'main' }})
+    }})
+    .then(res => {{
+        if (res.status === 204) {{
+            btn.textContent = '✅ Actualizando...';
+            setTimeout(() => {{ location.reload(); }}, 8000);
+        }} else {{
+            btn.textContent = '❌ Error ' + res.status;
+            btn.classList.remove('loading');
+            setTimeout(() => {{ btn.textContent = '🔄 Actualizar'; }}, 3000);
+        }}
+    }})
+    .catch(() => {{
+        btn.textContent = '❌ Sin conexión';
+        btn.classList.remove('loading');
+        setTimeout(() => {{ btn.textContent = '🔄 Actualizar'; }}, 3000);
+    }});
 }}
 
 const fullClientes = DATA.clients;
