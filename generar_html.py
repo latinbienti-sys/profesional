@@ -215,6 +215,9 @@ html = f'''<!DOCTYPE html>
         .header-filter .btn-filtrar:hover {{ background: #e07d00; }}
         .header-filter .btn-reset {{ padding: 4px 10px; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-size: 11px; cursor: pointer; }}
         .header-filter .btn-reset:hover {{ background: rgba(255,255,255,0.25); }}
+        .header-filter .btn-refresh {{ padding: 4px 14px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; margin-left: 10px; transition: background 0.2s; }}
+        .header-filter .btn-refresh:hover {{ background: #059669; }}
+        .header-filter .btn-refresh.loading {{ opacity: 0.6; pointer-events: none; }}
         .header-filter .filtro-info {{ font-size: 10px; color: var(--accent); font-weight: 600; }}
 
         .kpi-row {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }}
@@ -343,6 +346,7 @@ html = f'''<!DOCTYPE html>
             <button class="btn-filtrar" onclick="aplicarFiltroGlobal()">Aplicar</button>
             <button class="btn-reset" onclick="resetFiltroGlobal()">Limpiar</button>
             <span class="filtro-info" id="filtroInfoGlobal"></span>
+            <button class="btn-refresh" onclick="actualizarDashboard(this)" title="Forzar actualización desde Odoo">🔄 Actualizar</button>
         </div>
     </div>
 
@@ -525,6 +529,19 @@ function aplicarFiltroGlobal() {{
 function resetFiltroGlobal() {{
     window.location.hash = '';
     location.reload();
+}}
+
+function actualizarDashboard(btn) {{
+    btn.classList.add('loading');
+    btn.textContent = '⏳ Actualizando...';
+    
+    // Abrir Actions para ejecutar manualmente
+    window.open('https://github.com/latinbienti-sys/profesional/actions', '_blank');
+    
+    // Recargar la página después de 5s (por si ya se actualizó)
+    setTimeout(() => {{
+        location.reload();
+    }}, 5000);
 }}
 
 const fullClientes = DATA.clients;
