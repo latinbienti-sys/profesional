@@ -1174,66 +1174,58 @@ function switchTab(tab) {{
 // ================================================================
 //  PLAN DE PAGOS
 // ================================================================
-(function() {{
+try {{
     const pp = DATA.payment_plan;
-    if (!pp) return;
+    if (pp) {{
+        document.getElementById('pkTotalVencido').textContent = fmtMoney(pp.total_vencido);
+        document.getElementById('pkTotalDebido').textContent = fmtMoney(pp.total_debido);
+        document.getElementById('pkTotalPagado').textContent = fmtMoney(pp.total_pagado);
 
-    // KPIs
-    document.getElementById('pkTotalVencido').textContent = fmtMoney(pp.total_vencido);
-    document.getElementById('pkTotalDebido').textContent = fmtMoney(pp.total_debido);
-    document.getElementById('pkTotalPagado').textContent = fmtMoney(pp.total_pagado);
+        const stateLabels = {{'vencido':'Vencido','draft':'Debido','paid':'Pagado'}};
+        const stateColors = {{'vencido':'#ef4444','draft':'#f59e0b','paid':'#10b981'}};
+        const stKeys = Object.keys(pp.state_totals);
+        safeChart('chartPagosState', {{
+            type:'doughnut',
+            data:{{
+                labels: stKeys.map(k => stateLabels[k] + ' (' + pp.state_totals[k].cantidad + ')'),
+                datasets:[{{data: stKeys.map(k => pp.state_totals[k].monto),
+                            backgroundColor: stKeys.map(k => stateColors[k]||'#999'),
+                            borderColor:'#fff', borderWidth:3}}]
+            }},
+            options:{{responsive:true, maintainAspectRatio:false,
+                plugins:{{legend:{{position:'right', labels:{{font:{{size:12}}}}}},
+                         tooltip:{{callbacks:{{label:ctx=>ctx.label+' — $'+ctx.parsed.toFixed(2)}}}}}}}}
+        }});
 
-    // Gráfico estado de cuotas
-    const stateLabels = {{'vencido':'Vencido','draft':'Debido','paid':'Pagado'}};
-    const stateColors = {{'vencido':'#ef4444','draft':'#f59e0b','paid':'#10b981'}};
-    const stKeys = Object.keys(pp.state_totals);
-    safeChart('chartPagosState', {{
-        type:'doughnut',
-        data:{{
-            labels: stKeys.map(k => stateLabels[k] + ' (' + pp.state_totals[k].cantidad + ')'),
-            datasets:[{{data: stKeys.map(k => pp.state_totals[k].monto),
-                        backgroundColor: stKeys.map(k => stateColors[k]||'#999'),
-                        borderColor:'#fff', borderWidth:3}}]
-        }},
-        options:{{responsive:true, maintainAspectRatio:false,
-            plugins:{{legend:{{position:'right', labels:{{font:{{size:12}}}}}},
-                     tooltip:{{callbacks:{{label:ctx=>ctx.label+' — $'+ctx.parsed.toFixed(2)}}}}}}}}
-    }});
+        const hoy = new Date();
+        const prox30 = new Date(hoy.getTime() + 30*24*60*60*1000).toISOString().slice(0,10);
+        const proyFiltrada = (pp.proyeccion||[]).filter(p => p.fecha >= hoy.toISOString().slice(0,10) && p.fecha <= prox30);
+        const fechas = proyFiltrada.map(p => {{ const d = p.fecha.split('-'); return d[2]+'/'+d[1]; }});
+        safeChart('chartProyeccion', {{
+            type:'bar',
+            data:{{
+                labels: fechas,
+                datasets:[{{label:'Monto a cobrar', data:proyFiltrada.map(p=>p.monto),
+                            backgroundColor:'#f59e0b', borderRadius:6}}]
+            }},
+            options:{{responsive:true, maintainAspectRatio:false,
+                plugins:{{legend:{{display:false}}}},
+                scales:{{x:{{grid:{{display:false}}}}, y:{{beginAtZero:true, ticks:{{callback:v=>'$'+v.toFixed(0)}}}}}}}}
+        }});
 
-    // Proyección de cobros (próximos 30 días)
-    const hoy = new Date();
-    const prox30 = new Date(hoy.getTime() + 30*24*60*60*1000).toISOString().slice(0,10);
-    const proyFiltrada = (pp.proyeccion||[]).filter(p => p.fecha >= hoy.toISOString().slice(0,10) && p.fecha <= prox30);
-    const fechas = proyFiltrada.map(p => {{
-        const d = p.fecha.split('-');
-        return d[2]+'/'+d[1];
-    }});
-    safeChart('chartProyeccion', {{
-        type:'bar',
-        data:{{
-            labels: fechas,
-            datasets:[{{label:'Monto a cobrar', data:proyFiltrada.map(p=>p.monto),
-                        backgroundColor:'#f59e0b', borderRadius:6}}]
-        }},
-        options:{{responsive:true, maintainAspectRatio:false,
-            plugins:{{legend:{{display:false}}}},
-            scales:{{x:{{grid:{{display:false}}}}, y:{{beginAtZero:true, ticks:{{callback:v=>'$'+v.toFixed(0)}}}}}}}}
-    }});
-
-    // Tabla de clientes vencidos
-    const vencidos = pp.clientes_vencidos || [];
-    document.getElementById('pkVencidoTotal').textContent = fmtMoney(pp.total_vencido);
-    document.getElementById('pkVencidosCount').textContent = vencidos.length;
-    const tbody = document.getElementById('tablaVencidos');
-    tbody.innerHTML = vencidos.map(v => `
-        <tr>
-            <td><strong>${{v.cliente}}</strong></td>
-            <td class="text-right">${{v.cuotas}}</td>
-            <td class="text-right" style="color:#ef4444;font-weight:600">${{fmtMoney(v.monto)}}</td>
-            <td style="font-size:11px;color:#666">${{v.facturas.join(', ')}}</td>
-        </tr>
-    `).join('');
-}})();
+        const vencidos = pp.clientes_vencidos || [];
+        document.getElementById('pkVencidoTotal').textContent = fmtMoney(pp.total_vencido);
+        document.getElementById('pkVencidosCount').textContent = vencidos.length;
+        document.getElementById('tablaVencidos').innerHTML = vencidos.slice(0,50).map(v => `
+            <tr>
+                <td><strong>${{v.cliente}}</strong></td>
+                <td class="text-right">${{v.cuotas}}</td>
+                <td class="text-right" style="color:#ef4444;font-weight:600">${{fmtMoney(v.monto)}}</td>
+                <td style="font-size:11px;color:#666">${{v.facturas.slice(0,3).join(', ')}}{{v.facturas.length>3?'...':''}}</td>
+            </tr>
+        `).join('');
+    }}
+}} catch(e) {{ console.error('Payment plan error:', e); }}
 
 renderTable();
 switchTab('resumen');
