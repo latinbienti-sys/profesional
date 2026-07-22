@@ -531,25 +531,32 @@ function getFilteredClientes() {{
     invs.forEach(inv => {{
         const nom = inv.cliente || '(sin nombre)';
         if (!clientMap[nom]) {{
-            clientMap[nom] = {{ contratos: 0, facturado: 0, cobrado: 0, saldo: 0, prom: 0 }};
+            clientMap[nom] = {{ contratos: 0, facturado: 0, cobrado: 0, saldo: 0, prom: 0, workers: [] }};
         }}
         clientMap[nom].contratos += 1;
         clientMap[nom].facturado += inv.total;
         clientMap[nom].cobrado += inv.pagado;
+        if (inv.trabajador) clientMap[nom].workers.push(inv.trabajador);
     }});
-    const result = Object.keys(clientMap).map(nom => ({{
-        cliente: nom,
-        contratos: clientMap[nom].contratos,
-        facturado: clientMap[nom].facturado,
-        cobrado: clientMap[nom].cobrado,
-        saldo: clientMap[nom].facturado - clientMap[nom].cobrado,
-        prom: clientMap[nom].facturado / clientMap[nom].contratos,
-        // Los filtros de segmento/tipo se deshabilitan con fecha activa
-        worker_type: '',
-        segmento: '',
-        first_date: '',
-        last_date: '',
-    }}));
+    const result = Object.keys(clientMap).map(nom => {{
+        const d = clientMap[nom];
+        // Worker más frecuente para este cliente
+        const freq = {{}};
+        d.workers.forEach(w => {{ freq[w] = (freq[w]||0) + 1; }});
+        const topWorker = Object.keys(freq).sort((a,b) => freq[b]-freq[a])[0] || '';
+        return {{
+            cliente: nom,
+            contratos: d.contratos,
+            facturado: d.facturado,
+            cobrado: d.cobrado,
+            saldo: d.facturado - d.cobrado,
+            prom: d.facturado / d.contratos,
+            worker_type: topWorker,
+            segmento: topWorker,
+            first_date: '',
+            last_date: '',
+        }};
+    }});
     result.sort((a,b) => b.contratos - a.contratos);
     return result;
 }}
