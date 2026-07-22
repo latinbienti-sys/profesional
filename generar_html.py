@@ -356,6 +356,7 @@ html = f'''<!DOCTYPE html>
         <button class="tab-btn" onclick="switchTab('segmentos')">👥 Segmentos</button>
         <button class="tab-btn" onclick="switchTab('temporal')">⏱ Temporal VIP</button>
         <button class="tab-btn" onclick="switchTab('tabla')">📋 Listado</button>
+        <button class="tab-btn" onclick="switchTab('pagos')">💳 Plan de Pagos</button>
     </div>
 
     <!-- TAB 1: RESUMEN -->
@@ -479,6 +480,36 @@ html = f'''<!DOCTYPE html>
                         </tr>
                     </thead>
                     <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 6: PLAN DE PAGOS -->
+    <div class="tab-content" id="tab-pagos">
+        <div class="kpi-row">
+            <div class="kpi-card danger"><div class="number money" id="pkTotalVencido">—</div><div class="label">Total Vencido</div></div>
+            <div class="kpi-card accent"><div class="number money" id="pkTotalDebido">—</div><div class="label">Total Debido (al día)</div></div>
+            <div class="kpi-card success"><div class="number money" id="pkTotalPagado">—</div><div class="label">Total Pagado</div></div>
+        </div>
+        <div class="charts-row">
+            <div class="chart-card"><h3>📊 Estado de Cuotas</h3><div class="chart-container" style="height:250px"><canvas id="chartPagosState"></canvas></div></div>
+            <div class="chart-card"><h3>📅 Proyección de Cobros (Debido)</h3><div class="chart-container" style="height:250px"><canvas id="chartProyeccion"></canvas></div></div>
+        </div>
+        <div class="table-card">
+            <h3>⚠️ Clientes con Cuotas Vencidas</h3>
+            <div style="margin:8px 0;font-size:13px;color:#666">Total vencido: <strong id="pkVencidoTotal">—</strong> — <span id="pkVencidosCount">—</span> clientes afectados</div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th class="text-right">Cuotas Vencidas</th>
+                            <th class="text-right">Monto Vencido</th>
+                            <th>Facturas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaVencidos"></tbody>
                 </table>
             </div>
         </div>
@@ -1130,7 +1161,7 @@ function renderTable() {{
 function switchTab(tab) {{
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    const tabMap = {{resumen:'Resumen', montos:'Montos', segmentos:'Segmentos', temporal:'Temporal', tabla:'Listado'}};
+    const tabMap = {{resumen:'Resumen', montos:'Montos', segmentos:'Segmentos', temporal:'Temporal', tabla:'Listado', pagos:'Plan de Pagos'}};
     const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.includes(tabMap[tab]));
     if (btn) btn.classList.add('active');
     document.getElementById('tab-'+tab).classList.add('active');
@@ -1140,7 +1171,70 @@ function switchTab(tab) {{
             if (ch) ch.resize();
         }});
     }}, 100);
-}}
+// ================================================================
+//  PLAN DE PAGOS
+// ================================================================
+(function() {{
+    const pp = DATA.payment_plan;
+    if (!pp) return;
+
+    // KPIs
+    document.getElementById('pkTotalVencido').textContent = fmtMoney(pp.total_vencido);
+    document.getElementById('pkTotalDebido').textContent = fmtMoney(pp.total_debido);
+    document.getElementById('pkTotalPagado').textContent = fmtMoney(pp.total_pagado);
+
+    // Gráfico estado de cuotas
+    const stateLabels = {{'vencido':'Vencido','draft':'Debido','paid':'Pagado'}};
+    const stateColors = {{'vencido':'#ef4444','draft':'#f59e0b','paid':'#10b981'}};
+    const stKeys = Object.keys(pp.state_totals);
+    safeChart('chartPagosState', {{
+        type:'doughnut',
+        data:{{
+            labels: stKeys.map(k => stateLabels[k] + ' (' + pp.state_totals[k].cantidad + ')'),
+            datasets:[{{data: stKeys.map(k => pp.state_totals[k].monto),
+                        backgroundColor: stKeys.map(k => stateColors[k]||'#999'),
+                        borderColor:'#fff', borderWidth:3}}]
+        }},
+        options:{{responsive:true, maintainAspectRatio:false,
+            plugins:{{legend:{{position:'right', labels:{{font:{{size:12}}}}}},
+                     tooltip:{{callbacks:{{label:ctx=>ctx.label+' — $'+ctx.parsed.toFixed(2)}}}}}}}}
+    }});
+
+    // Proyección de cobros (próximos 30 días)
+    const hoy = new Date();
+    const prox30 = new Date(hoy.getTime() + 30*24*60*60*1000).toISOString().slice(0,10);
+    const proyFiltrada = (pp.proyeccion||[]).filter(p => p.fecha >= hoy.toISOString().slice(0,10) && p.fecha <= prox30);
+    const fechas = proyFiltrada.map(p => {{
+        const d = p.fecha.split('-');
+        return d[2]+'/'+d[1];
+    }});
+    safeChart('chartProyeccion', {{
+        type:'bar',
+        data:{{
+            labels: fechas,
+            datasets:[{{label:'Monto a cobrar', data:proyFiltrada.map(p=>p.monto),
+                        backgroundColor:'#f59e0b', borderRadius:6}}]
+        }},
+        options:{{responsive:true, maintainAspectRatio:false,
+            plugins:{{legend:{{display:false}}}},
+            scales:{{x:{{grid:{{display:false}}}}, y:{{beginAtZero:true, ticks:{{callback:v=>'$'+v.toFixed(0)}}}}}}}}
+    }});
+
+    // Tabla de clientes vencidos
+    const vencidos = pp.clientes_vencidos || [];
+    document.getElementById('pkVencidoTotal').textContent = fmtMoney(pp.total_vencido);
+    document.getElementById('pkVencidosCount').textContent = vencidos.length;
+    const tbody = document.getElementById('tablaVencidos');
+    tbody.innerHTML = vencidos.map(v => `
+        <tr>
+            <td><strong>${{v.cliente}}</strong></td>
+            <td class="text-right">${{v.cuotas}}</td>
+            <td class="text-right" style="color:#ef4444;font-weight:600">${{fmtMoney(v.monto)}}</td>
+            <td style="font-size:11px;color:#666">${{v.facturas.join(', ')}}</td>
+        </tr>
+    `).join('');
+}})();
+
 renderTable();
 switchTab('resumen');
 }} catch(e) {{

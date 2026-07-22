@@ -165,6 +165,9 @@ def fetch_data():
             'trabajador': r['trabajador'],
         })
     
+    # Plan de pagos
+    payment_plan = fetch_payment_plan(uid, models)
+    
     return {
         'status_summary': dict(status_counter.most_common()),
         'total_rows': all_ids,
@@ -187,9 +190,98 @@ def fetch_data():
         'vip': [{'cliente': c['cliente'], 'cont': c['contratos'],
                  'first': c['first_date'], 'last': c['last_date']}
                 for c in vip_clients],
+        'payment_plan': payment_plan,
     }
 
-# ── Generar HTML ────────────────────────────────────────────────
+# ── Plan de Pagos (Cuotas Fraccionadas) ──────────────────────────
+def fetch_payment_plan(uid, models):
+    """Obtiene resumen del plan de pagos fraccionado desde invoice.installment.line."""
+    from collections import defaultdict
+    
+    # Leer en lotes
+    ids = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'invoice.installment.line',
+                            'search', [[]])
+    batch_size = 2000
+    all_lines = []
+    for i in range(0, len(ids), batch_size):
+        batch = ids[i:i+batch_size]
+        recs = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'invoice.installment.line',
+                                 'read', [batch, ['state', 'amount', 'payment_date', 'invoice_id']])
+        all_lines.extend(recs)
+    
+    # Agrupar por estado
+    state_totals = defaultdict(lambda: {'monto': 0.0, 'cantidad': 0})
+    vencidos = []       # lista de (invoice_id, monto, fecha, factura_name)
+    debidos = []        # lista de (invoice_id, monto, fecha, factura_name)
+    proyeccion = defaultdict(float)  # payment_date -> monto (solo no pagados)
+    
+    for line in all_lines:
+        st = line.get('state', '')
+        amt = float(line.get('amount') or 0)
+        state_totals[st]['monto'] += amt
+        state_totals[st]['cantidad'] += 1
+        
+        inv = line.get('invoice_id')
+        inv_id = inv[0] if isinstance(inv, list) and len(inv) > 1 else None
+        inv_name = inv[1] if isinstance(inv, list) and len(inv) > 1 else ''
+        fecha = str(line.get('payment_date') or '')
+        
+        if st == 'vencido':
+            vencidos.append({'invoice_id': inv_id, 'invoice_name': inv_name,
+                             'monto': amt, 'fecha': fecha})
+        elif st == 'draft':
+            debidos.append({'invoice_id': inv_id, 'invoice_name': inv_name,
+                            'monto': amt, 'fecha': fecha})
+            if fecha:
+                proyeccion[fecha] += amt
+    
+    # Obtener nombres de clientes desde las facturas involucradas
+    inv_ids = set()
+    for v in vencidos:
+        if v['invoice_id']: inv_ids.add(v['invoice_id'])
+    for d in debidos:
+        if d['invoice_id']: inv_ids.add(d['invoice_id'])
+    
+    partner_map = {}
+    if inv_ids:
+        inv_list = list(inv_ids)
+        inv_batches = [inv_list[i:i+500] for i in range(0, len(inv_list), 500)]
+        for batch in inv_batches:
+            inv_data = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
+                                         'read', [batch, ['partner_id', 'name']])
+            for inv in inv_data:
+                pid = inv.get('partner_id')
+                partner = pid[1] if isinstance(pid, list) and len(pid) > 1 else 'Desconocido'
+                partner_map[inv['id']] = partner
+    
+    # Combinar datos de clientes en vencidos
+    clientes_vencidos = defaultdict(lambda: {'monto': 0.0, 'cuotas': 0, 'facturas': []})
+    for v in vencidos:
+        cliente = partner_map.get(v['invoice_id'], 'Desconocido')
+        clientes_vencidos[cliente]['monto'] += v['monto']
+        clientes_vencidos[cliente]['cuotas'] += 1
+        if v['invoice_name'] not in clientes_vencidos[cliente]['facturas']:
+            clientes_vencidos[cliente]['facturas'].append(v['invoice_name'])
+    
+    clientes_vencidos_list = [{'cliente': k, 'monto': round(v['monto'], 2),
+                                'cuotas': v['cuotas'], 'facturas': v['facturas']}
+                              for k, v in sorted(clientes_vencidos.items(),
+                                                 key=lambda x: -x[1]['monto'])]
+    
+    # Proyección ordenada
+    proyeccion_list = [{'fecha': k, 'monto': round(v, 2)}
+                       for k, v in sorted(proyeccion.items())]
+    
+    return {
+        'state_totals': {k: {'monto': round(v['monto'], 2), 'cantidad': v['cantidad']}
+                         for k, v in sorted(state_totals.items())},
+        'clientes_vencidos': clientes_vencidos_list[:100],  # Top 100
+        'proyeccion': proyeccion_list,
+        'total_vencido': round(state_totals['vencido']['monto'], 2),
+        'total_debido': round(state_totals['draft']['monto'], 2),
+        'total_pagado': round(state_totals['paid']['monto'], 2),
+        'total_cuotas': len(all_lines),
+    }
 def build_html(data):
     script_path = os.path.join(os.path.dirname(__file__), 'generar_html.py')
     with open(script_path, 'r', encoding='utf-8') as f:
