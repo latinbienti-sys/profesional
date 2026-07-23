@@ -263,6 +263,13 @@ html = f'''<!DOCTYPE html>
         .table-card .pagination button:hover:not(:disabled) {{ background: var(--primary); color: var(--white); border-color: var(--primary); }}
         .table-card .pagination button:disabled {{ opacity: 0.4; cursor: default; }}
         .table-card .page-info {{ font-size: 12px; color: #888; }}
+        .ciclo-btn {{ padding: 7px 18px; border: 2px solid var(--primary-light); background: var(--white); color: var(--primary); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }}
+        .ciclo-btn.active {{ background: var(--primary); color: var(--white); border-color: var(--primary); }}
+        .ciclo-btn:hover:not(.active) {{ background: #eef1f9; }}
+        .mini-kpi {{ background: var(--white); border: 1px solid #e8eaef; border-left: 3px solid var(--primary); border-radius: 8px; padding: 10px 14px; }}
+        .mini-kpi .mini-val {{ font-size: 18px; font-weight: 700; color: var(--primary); }}
+        .mini-kpi .mini-lbl {{ font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.3px; }}
+        .mini-kpi .mini-sub {{ font-size: 12px; color: #888; margin-top: 2px; }}
         .table-wrapper {{ overflow-x: auto; }}
         table {{ width: 100%; border-collapse: collapse; }}
         table thead th {{ background: #f0f2f7; padding: 9px 11px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--primary); border-bottom: 2px solid #e0e4ed; cursor: pointer; user-select: none; white-space: nowrap; }}
@@ -518,8 +525,33 @@ html = f'''<!DOCTYPE html>
     <div class="footer">
         <strong>LATINBIEN</strong> — Latinoamericana de Bienes y Servicios, C.A. &nbsp;·&nbsp;
         Generado el <span id="fechaGeneracion"></span>
+        </div>
+        <div class="table-card">
+            <h3>📆 Ciclo de Pago — Análisis por Día</h3>
+            <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="ciclo-btn active" data-rango="03-18" onclick="renderCiclo('03-18')">Ciclo 03 – 18</button>
+                <button class="ciclo-btn" data-rango="10-25" onclick="renderCiclo('10-25')">Ciclo 10 – 25</button>
+            </div>
+            <div id="cicloResumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Día</th>
+                            <th class="text-right">Debidas</th>
+                            <th class="text-right">$ Debido</th>
+                            <th class="text-right">Vencidas</th>
+                            <th class="text-right">$ Vencido</th>
+                            <th class="text-right">Días Mora Ø</th>
+                            <th class="text-right">Pagadas</th>
+                            <th class="text-right">$ Pagado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaCiclo"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
-</div>
 
 <script>
 // ================================================================
@@ -1194,8 +1226,53 @@ try {{
                 return '<tr><td><strong>' + v.cliente + '</strong></td><td class=\"text-right\">' + v.cuotas + '</td><td class=\"text-right\" style=\"color:#ef4444;font-weight:600\">' + fmtMoney(v.monto) + '</td><td style=\"font-size:11px;color:#666\">' + factStr + '</td></tr>';
             }}).join('');
         }}
+        renderCiclo('03-18');
     }}
 }} catch(e) {{ console.error('Payment plan error:', e); }}
+
+function renderCiclo(rango) {{
+    document.querySelectorAll('.ciclo-btn').forEach(b => b.classList.toggle('active', b.dataset.rango === rango));
+    const pp = DATA.payment_plan;
+    if (!pp || !pp.ciclo_analysis) return;
+    const dias = pp.ciclo_analysis[rango];
+    if (!dias) return;
+    const claves = Object.keys(dias).sort((a,b) => parseInt(a)-parseInt(b));
+    
+    // Resumen
+    var totalDraft = 0, totalVenc = 0, totalPaid = 0;
+    var montoDraft = 0, montoVenc = 0, montoPaid = 0;
+    var diasMoraSum = 0, diasMoraCount = 0;
+    claves.forEach(function(d) {{
+        var e = dias[d];
+        totalDraft += e.draft.cantidad; montoDraft += e.draft.monto;
+        totalVenc += e.vencido.cantidad; montoVenc += e.vencido.monto;
+        totalPaid += e.paid.cantidad; montoPaid += e.paid.monto;
+        if (e.vencido.dias_mora_prom > 0) {{ diasMoraSum += e.vencido.dias_mora_prom; diasMoraCount++; }}
+    }});
+    document.getElementById('cicloResumen').innerHTML =
+        '<div class=\"mini-kpi\"><div class=\"mini-val\">' + totalDraft.toLocaleString() + '</div><div class=\"mini-lbl\">Cuotas Debidas</div><div class=\"mini-sub\">$' + montoDraft.toLocaleString('en-US',{{minimumFractionDigits:2}}) + '</div></div>' +
+        '<div class=\"mini-kpi\" style=\"border-left:3px solid #ef4444\"><div class=\"mini-val\" style=\"color:#ef4444\">' + totalVenc.toLocaleString() + '</div><div class=\"mini-lbl\">Cuotas Vencidas</div><div class=\"mini-sub\">$' + montoVenc.toLocaleString('en-US',{{minimumFractionDigits:2}}) + '</div></div>' +
+        '<div class=\"mini-kpi\" style=\"border-left:3px solid #10b981\"><div class=\"mini-val\" style=\"color:#10b981\">' + totalPaid.toLocaleString() + '</div><div class=\"mini-lbl\">Cuotas Pagadas</div><div class=\"mini-sub\">$' + montoPaid.toLocaleString('en-US',{{minimumFractionDigits:2}}) + '</div></div>' +
+        '<div class=\"mini-kpi\" style=\"border-left:3px solid #f59e0b\"><div class=\"mini-val\" style=\"color:#f59e0b\">' + (diasMoraCount>0?(diasMoraSum/diasMoraCount).toFixed(1):'0') + 'd</div><div class=\"mini-lbl\">Días Mora Promedio</div></div>';
+    
+    // Tabla
+    var html = '';
+    claves.forEach(function(d) {{
+        var e = dias[d];
+        html += '<tr>' +
+            '<td><strong>Día ' + d + '</strong></td>' +
+            '<td class=\"text-right\">' + e.draft.cantidad + '</td>' +
+            '<td class=\"text-right\">' + fmtMoney(e.draft.monto) + '</td>' +
+            '<td class=\"text-right\" style=\"color:' + (e.vencido.cantidad>0?'#ef4444':'#999') + '\">' + e.vencido.cantidad + '</td>' +
+            '<td class=\"text-right\" style=\"color:' + (e.vencido.monto>0?'#ef4444':'#999') + '\">' + fmtMoney(e.vencido.monto) + '</td>' +
+            '<td class=\"text-right\">' + (e.vencido.dias_mora_prom>0?e.vencido.dias_mora_prom + 'd (' + e.vencido.max_dias_mora + 'd máx)':'—') + '</td>' +
+            '<td class=\"text-right\">' + e.paid.cantidad + '</td>' +
+            '<td class=\"text-right\">' + fmtMoney(e.paid.monto) + '</td>' +
+            '</tr>';
+    }});
+    var tbody = document.getElementById('tablaCiclo');
+    if (tbody) tbody.innerHTML = html;
+}}
 
 renderTable();
 switchTab('resumen');

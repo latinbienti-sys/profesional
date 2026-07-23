@@ -215,6 +215,12 @@ def fetch_payment_plan(uid, models):
     debidos = []        # lista de (invoice_id, monto, fecha, factura_name)
     proyeccion = defaultdict(float)  # payment_date -> monto (solo no pagados)
     
+    # Análisis por ciclo (día del mes)
+    from datetime import datetime, date
+    hoy = date.today()
+    # ciclo_data[dia][state] = {'cantidad': N, 'monto': X, 'dias_mora': [lista]}
+    ciclo_data = defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0, 'dias_mora': []}))
+    
     for line in all_lines:
         st = line.get('state', '')
         amt = float(line.get('amount') or 0)
@@ -225,6 +231,27 @@ def fetch_payment_plan(uid, models):
         inv_id = inv[0] if isinstance(inv, list) and len(inv) > 1 else None
         inv_name = inv[1] if isinstance(inv, list) and len(inv) > 1 else ''
         fecha = str(line.get('payment_date') or '')
+        
+        # Extraer día del mes para ciclo
+        dia = 0
+        try:
+            if fecha and '-' in fecha:
+                dia = int(fecha.split('-')[2])
+        except (ValueError, IndexError):
+            dia = 0
+        
+        if dia > 0:
+            c = ciclo_data[dia][st]
+            c['cantidad'] += 1
+            c['monto'] += amt
+            if st == 'vencido':
+                try:
+                    fd = datetime.strptime(fecha, '%Y-%m-%d').date()
+                    d_mora = (hoy - fd).days
+                    if d_mora > 0:
+                        c['dias_mora'].append(d_mora)
+                except (ValueError, TypeError):
+                    pass
         
         if st == 'vencido':
             vencidos.append({'invoice_id': inv_id, 'invoice_name': inv_name,
@@ -272,6 +299,29 @@ def fetch_payment_plan(uid, models):
     proyeccion_list = [{'fecha': k, 'monto': round(v, 2)}
                        for k, v in sorted(proyeccion.items())]
     
+    # Construir ciclo_analysis para rangos 03-18 y 10-25
+    def build_ciclo_range(dia_min, dia_max):
+        """Construye datos para un rango de días de ciclo."""
+        result = {}
+        for d in range(dia_min, dia_max + 1):
+            entry = {}
+            for st in ['draft', 'vencido', 'paid']:
+                c = ciclo_data.get(d, {}).get(st, {'cantidad': 0, 'monto': 0.0, 'dias_mora': []})
+                dm = c.get('dias_mora', [])
+                entry[st] = {
+                    'cantidad': c['cantidad'],
+                    'monto': round(c['monto'], 2),
+                    'dias_mora_prom': round(sum(dm)/len(dm), 1) if dm else 0,
+                    'max_dias_mora': max(dm) if dm else 0
+                }
+            result[str(d)] = entry
+        return result
+    
+    ciclo_analysis = {
+        '03-18': build_ciclo_range(3, 18),
+        '10-25': build_ciclo_range(10, 25),
+    }
+    
     return {
         'state_totals': {k: {'monto': round(v['monto'], 2), 'cantidad': v['cantidad']}
                          for k, v in sorted(state_totals.items())},
@@ -281,6 +331,7 @@ def fetch_payment_plan(uid, models):
         'total_debido': round(state_totals['draft']['monto'], 2),
         'total_pagado': round(state_totals['paid']['monto'], 2),
         'total_cuotas': len(all_lines),
+        'ciclo_analysis': ciclo_analysis,
     }
 def build_html(data):
     script_path = os.path.join(os.path.dirname(__file__), 'generar_html.py')
