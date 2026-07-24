@@ -353,7 +353,8 @@ html = f'''<!DOCTYPE html>
             <button class="btn-filtrar" onclick="aplicarFiltroGlobal()">Aplicar</button>
             <button class="btn-reset" onclick="resetFiltroGlobal()">Limpiar</button>
             <span class="filtro-info" id="filtroInfoGlobal"></span>
-            <button class="btn-refresh" onclick="actualizarDashboard(this)" title="Forzar actualización desde Odoo">🔄 Actualizar</button>
+            <button class="btn-refresh" onclick="actualizarDashboard(this)" title="Forzar actualización desde Odoo">🔄 Actualizar ahora</button>
+            <span id="ultimaActualizacion" style="margin-left:10px;font-size:10px;color:rgba(255,255,255,0.5)"></span>
         </div>
     </div>
 
@@ -684,7 +685,13 @@ function resetFiltroGlobal() {{
 
 function actualizarDashboard(btn) {{
     if (!GITHUB_TOKEN) {{
-        const token = prompt('Pega tu token de GitHub (solo Actions:Write):');
+        const instrucciones = '👉 Para actualizar necesitas un token de GitHub.\n\n' +
+            '1. Ve a: https://github.com/settings/tokens/new\n' +
+            '2. Dale un nombre (ej: "dashboard-actualizar")\n' +
+            '3. Marca SOLO: "workflow:write" (o Actions: Write)\n' +
+            '4. Genera y copia el token\n' +
+            '5. Pégalo aquí (se guarda en tu navegador, solo una vez)';
+        const token = prompt(instrucciones);
         if (!token) return;
         localStorage.setItem('gh_token', token);
         GITHUB_TOKEN = token;
@@ -769,6 +776,8 @@ function safeChart(canvasId, config) {{
 try {{
 document.getElementById("fechaGeneracion").textContent =
     new Date().toLocaleDateString("es-ES", {{year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}});
+var ultAct = document.getElementById("ultimaActualizacion");
+if (ultAct) ultAct.textContent = '⏱ ' + new Date().toLocaleDateString("es-ES", {{year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}});
 
 const totalFact = clientes.reduce((s,c) => s + c.facturado, 0);
 const totalCob = clientes.reduce((s,c) => s + c.cobrado, 0);
