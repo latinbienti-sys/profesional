@@ -1290,7 +1290,8 @@ try {{
         }}
         renderCiclo('10-25');
         renderManana();
-        mostrarManana();
+        // Pequeño delay para asegurar que el DOM del ciclo esté listo
+        setTimeout(mostrarManana, 50);
     }}
 }} catch(e) {{ console.error('Payment plan error:', e); }}
 
@@ -1300,7 +1301,10 @@ function renderCiclo(rango) {{
     if (!pp || !pp.ciclo_analysis) return;
     const dias = pp.ciclo_analysis[rango];
     if (!dias) return;
-    const claves = Object.keys(dias).sort((a,b) => parseInt(a)-parseInt(b));
+    const claves = Object.keys(dias).sort((a,b) => parseInt(a)-parseInt(b)).filter(function(k) {{
+        var d = dias[k];
+        return d.draft.cantidad > 0 || d.vencido.cantidad > 0 || d.paid.cantidad > 0;
+    }});
     
     // Resumen
     var totalDraft = 0, totalVenc = 0, totalPaid = 0;
@@ -1422,11 +1426,7 @@ function renderManana() {{
 function mostrarManana() {{
     var hoy = new Date().getDate();
     var manana = hoy + 1;
-    // Elegir rango que contenga mañana
-    var rango = '10-25';
-    if (manana >= 3 && manana <= 18) rango = '03-18';
-    // Cambiar el ciclo activo y mostrar el día
-    renderCiclo(rango);
+    // Buscar la fila del día de mañana en la tabla ya renderizada
     var tbody = document.getElementById('tablaCiclo');
     if (tbody) {{
         var trs = tbody.querySelectorAll('tr');

@@ -322,7 +322,7 @@ def fetch_payment_plan(sess):
                 partner = pid[1] if isinstance(pid, list) and len(pid) > 1 else 'Desconocido'
                 partner_map[inv['id']] = partner
                 raw_st = inv.get('x_status_operativos', '')
-                invoice_status_map[inv['id']] = status_labels.get(str(raw_st), str(raw_st))
+                invoice_status_map[inv['id']] = status_labels.get(str(raw_st), '')
     
     # Resolver inv_id -> partner name en ciclo_clientes (agregar por partner)
     ciclo_clientes_por_partner = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0})))
