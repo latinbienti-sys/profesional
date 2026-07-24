@@ -254,6 +254,7 @@ def fetch_payment_plan(sess):
     ciclo_data = defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0, 'dias_mora': []}))
     # ciclo_clientes[dia][partner_name][state] = {'cantidad': N, 'monto': X}
     ciclo_clientes = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0})))
+    invoice_status_map = {}  # se llena después con datos de Odoo (consulta separada)
     
     for line in all_lines:
         st = line.get('state', '')
@@ -309,38 +310,50 @@ def fetch_payment_plan(sess):
         if d['invoice_id']: inv_ids.add(d['invoice_id'])
     
     partner_map = {}
+    status_labels = {'6': 'Entregado', '4': 'Aprobado'}
+    
     if inv_ids:
         inv_list = list(inv_ids)
         inv_batches = [inv_list[i:i+500] for i in range(0, len(inv_list), 500)]
         for batch in inv_batches:
-            inv_data = json_execute(sess, 'account.move', 'read', [batch, ['partner_id', 'name']])
+            inv_data = json_execute(sess, 'account.move', 'read', [batch, ['partner_id', 'name', 'x_status_operativos']])
             for inv in inv_data:
                 pid = inv.get('partner_id')
                 partner = pid[1] if isinstance(pid, list) and len(pid) > 1 else 'Desconocido'
                 partner_map[inv['id']] = partner
+                raw_st = inv.get('x_status_operativos', '')
+                invoice_status_map[inv['id']] = status_labels.get(str(raw_st), str(raw_st))
     
     # Resolver inv_id -> partner name en ciclo_clientes (agregar por partner)
     ciclo_clientes_por_partner = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0})))
+    ciclo_partner_statuses = defaultdict(lambda: defaultdict(set))  # dia -> partner -> set de statuses
     for dia, invs in ciclo_clientes.items():
         for inv_id, states in invs.items():
             partner = partner_map.get(inv_id, 'Desconocido')
-            for st, vals in states.items():
-                cc = ciclo_clientes_por_partner[dia][partner][st]
+            st = invoice_status_map.get(inv_id, '')
+            if st:
+                ciclo_partner_statuses[dia][partner].add(st)
+            for st_name, vals in states.items():
+                cc = ciclo_clientes_por_partner[dia][partner][st_name]
                 cc['cantidad'] += vals['cantidad']
                 cc['monto'] += vals['monto']
     ciclo_clientes = ciclo_clientes_por_partner
     
     # Combinar datos de clientes en vencidos
-    clientes_vencidos = defaultdict(lambda: {'monto': 0.0, 'cuotas': 0, 'facturas': []})
+    clientes_vencidos = defaultdict(lambda: {'monto': 0.0, 'cuotas': 0, 'facturas': [], 'statuses': set()})
     for v in vencidos:
         cliente = partner_map.get(v['invoice_id'], 'Desconocido')
         clientes_vencidos[cliente]['monto'] += v['monto']
         clientes_vencidos[cliente]['cuotas'] += 1
         if v['invoice_name'] not in clientes_vencidos[cliente]['facturas']:
             clientes_vencidos[cliente]['facturas'].append(v['invoice_name'])
+        st = invoice_status_map.get(v['invoice_id'], '')
+        if st:
+            clientes_vencidos[cliente]['statuses'].add(st)
     
     clientes_vencidos_list = [{'cliente': k, 'monto': round(v['monto'], 2),
-                                'cuotas': v['cuotas'], 'facturas': v['facturas']}
+                                'cuotas': v['cuotas'], 'facturas': v['facturas'],
+                                'statuses': list(v['statuses'])}
                               for k, v in sorted(clientes_vencidos.items(),
                                                  key=lambda x: -x[1]['monto'])]
     
@@ -365,12 +378,14 @@ def fetch_payment_plan(sess):
                 }
             # Clientes del día (top 30 por monto draft+vencido)
             clients_by_day = ciclo_clientes.get(d, {})
+            statuses_by_day = ciclo_partner_statuses.get(d, {})
             clients_list = []
             for partner, states in clients_by_day.items():
                 draft_monto = states.get('draft', {}).get('monto', 0)
                 venc_monto = states.get('vencido', {}).get('monto', 0)
                 total = draft_monto + venc_monto
                 if total > 0:
+                    partner_statuses = list(statuses_by_day.get(partner, set()))
                     clients_list.append({
                         'cliente': partner,
                         'monto_draft': round(draft_monto, 2),
@@ -379,6 +394,7 @@ def fetch_payment_plan(sess):
                         'cant_vencido': states.get('vencido', {}).get('cantidad', 0),
                         'monto_pagado': round(states.get('paid', {}).get('monto', 0), 2),
                         'cant_pagado': states.get('paid', {}).get('cantidad', 0),
+                        'statuses': partner_statuses,
                     })
             clients_list.sort(key=lambda x: -(x['monto_draft'] + x['monto_vencido']))
             entry['clientes'] = clients_list[:30]

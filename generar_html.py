@@ -219,6 +219,8 @@ html = f'''<!DOCTYPE html>
         .header-filter .btn-refresh:hover {{ background: #059669; }}
         .header-filter .btn-refresh.loading {{ opacity: 0.6; pointer-events: none; }}
         .header-filter .filtro-info {{ font-size: 10px; color: var(--accent); font-weight: 600; }}
+        .status-entregado {{ display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#d1fae5; color:#065f46; white-space:nowrap; }}
+        .status-aprobado {{ display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#dbeafe; color:#1e40af; white-space:nowrap; }}
 
         .kpi-row {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }}
         .kpi-card {{ background: var(--white); border-radius: 14px; padding: 16px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); text-align: center; border-top: 4px solid var(--primary-light); transition: transform 0.2s; }}
@@ -504,7 +506,7 @@ html = f'''<!DOCTYPE html>
             <div class="chart-card"><h3>📊 Estado de Cuotas</h3><div class="chart-container" style="height:250px"><canvas id="chartPagosState"></canvas></div></div>
             <div class="chart-card"><h3>📅 Proyección de Cobros (Debido)</h3><div class="chart-container" style="height:250px"><canvas id="chartProyeccion"></canvas></div></div>
         </div>
-        <div class="table-card">
+            <div class="table-card">
             <h3>⚠️ Clientes con Cuotas Vencidas</h3>
             <div style="margin:8px 0;font-size:13px;color:#666">Total vencido: <strong id="pkVencidoTotal">—</strong> — <span id="pkVencidosCount">—</span> clientes afectados</div>
             <div class="table-wrapper">
@@ -514,6 +516,7 @@ html = f'''<!DOCTYPE html>
                             <th>Cliente</th>
                             <th class="text-right">Cuotas Vencidas</th>
                             <th class="text-right">Monto Vencido</th>
+                            <th>Status</th>
                             <th>Facturas</th>
                         </tr>
                     </thead>
@@ -542,6 +545,7 @@ html = f'''<!DOCTYPE html>
                                 <th class="text-right">$ Debido</th>
                                 <th class="text-right">$ Vencido</th>
                                 <th class="text-right">$ Total</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="tablaClientesManana"></tbody>
@@ -583,6 +587,7 @@ html = f'''<!DOCTYPE html>
                                 <th class="text-right">Vencidas</th>
                                 <th class="text-right">$ Vencido</th>
                                 <th class="text-right">$ Pagado</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="tablaClientesDia"></tbody>
@@ -1273,9 +1278,14 @@ try {{
         var tbody = document.getElementById('tablaVencidos');
         if (tbody) {{
             tbody.innerHTML = vencidos.slice(0,50).map(function(v) {{
+                var statuses = v.statuses || [];
+                var statusHtml = statuses.map(function(s) {{
+                    var cls = s === 'Entregado' ? 'status-entregado' : 'status-aprobado';
+                    return '<span class=\"' + cls + '\">' + s + '</span>';
+                }}).join(' ');
                 var factStr = v.facturas.slice(0,3).join(', ');
                 if (v.facturas.length > 3) factStr += '...';
-                return '<tr><td><strong>' + v.cliente + '</strong></td><td class=\"text-right\">' + v.cuotas + '</td><td class=\"text-right\" style=\"color:#ef4444;font-weight:600\">' + fmtMoney(v.monto) + '</td><td style=\"font-size:11px;color:#666\">' + factStr + '</td></tr>';
+                return '<tr><td><strong>' + v.cliente + '</strong></td><td class=\"text-right\">' + v.cuotas + '</td><td class=\"text-right\" style=\"color:#ef4444;font-weight:600\">' + fmtMoney(v.monto) + '</td><td>' + statusHtml + '</td><td style=\"font-size:11px;color:#666\">' + factStr + '</td></tr>';
             }}).join('');
         }}
         renderCiclo('10-25');
@@ -1382,11 +1392,17 @@ function renderManana() {{
             totalEsperado += debido;
             totalVencido += vencido;
             totalGeneral += total;
+            var statuses = c.statuses || [];
+            var statusHtml = statuses.map(function(s) {{
+                var cls = s === 'Entregado' ? 'status-entregado' : 'status-aprobado';
+                return '<span class=\"' + cls + '\">' + s + '</span>';
+            }}).join(' ');
             return '<tr>' +
                 '<td><strong>' + c.cliente + '</strong></td>' +
                 '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(debido) + '</td>' +
                 '<td class=\"text-right\" style=\"color:' + (vencido>0?'#ef4444':'#999') + '\">' + fmtMoney(vencido) + '</td>' +
                 '<td class=\"text-right\" style=\"font-weight:700\">' + fmtMoney(total) + '</td>' +
+                '<td>' + statusHtml + '</td>' +
                 '</tr>';
         }}).join('');
         // Agregar fila de total
@@ -1395,7 +1411,8 @@ function renderManana() {{
             '<td>TOTAL</td>' +
             '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(totalEsperado) + '</td>' +
             '<td class=\"text-right\" style=\"color:' + (totalVencido>0?'#ef4444':'#999') + '\">' + fmtMoney(totalVencido) + '</td>' +
-            '<td class=\"text-right\">' + fmtMoney(totalGeneral) + '</td></tr>';
+            '<td class=\"text-right\">' + fmtMoney(totalGeneral) + '</td>' +
+            '<td></td></tr>';
     }}
     var subtotal = document.getElementById('mananaClientesSubtotal');
     if (subtotal) subtotal.textContent = '— Esperado: ' + fmtMoney(diaData.draft.monto) + ' · Vencido: ' + fmtMoney(diaData.vencido.monto);
@@ -1444,6 +1461,11 @@ function mostrarClientesDia(rango, dia) {{
     var tbody = document.getElementById('tablaClientesDia');
     if (!tbody) return;
     tbody.innerHTML = cl.map(function(c) {{
+        var statuses = c.statuses || [];
+        var statusHtml = statuses.map(function(s) {{
+            var cls = s === 'Entregado' ? 'status-entregado' : 'status-aprobado';
+            return '<span class=\"' + cls + '\">' + s + '</span>';
+        }}).join(' ');
         return '<tr>' +
             '<td><strong>' + c.cliente + '</strong></td>' +
             '<td class=\"text-right\">' + (c.cant_draft||0) + '</td>' +
@@ -1451,6 +1473,7 @@ function mostrarClientesDia(rango, dia) {{
             '<td class=\"text-right\" style=\"color:' + (c.monto_vencido>0?'#ef4444':'#999') + '\">' + (c.cant_vencido||0) + '</td>' +
             '<td class=\"text-right\" style=\"color:' + (c.monto_vencido>0?'#ef4444':'#999') + '\">' + fmtMoney(c.monto_vencido) + '</td>' +
             '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(c.monto_pagado) + '</td>' +
+            '<td>' + statusHtml + '</td>' +
             '</tr>';
     }}).join('');
 }}
