@@ -22,7 +22,7 @@ TARGET_STATUSES = ['6', '4', '8']
 
 # ── Cliente Odoo ────────────────────────────────────────────────
 def odoo_connect():
-    """Autentica y retorna uid + models proxy."""
+    """Autentica y retorna uid + models proxy (XML-RPC) + session (JSON-RPC opcional)."""
     common = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/common')
     uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_PASS, {})
     if not uid:
@@ -30,9 +30,45 @@ def odoo_connect():
     models = xmlrpc.client.ServerProxy(f'{ODOO_URL}/xmlrpc/2/object')
     return uid, models
 
+def json_connect():
+    """Autentica vía JSON-RPC y retorna session + uid.
+    JSON-RPC no sufre el bug de website_sale_wishlist en _check_credentials."""
+    import requests
+    sess = requests.Session()
+    resp = sess.post(f'{ODOO_URL}/web/session/authenticate', json={
+        'jsonrpc': '2.0', 'method': 'call',
+        'params': {'db': ODOO_DB, 'login': ODOO_USER, 'password': ODOO_PASS},
+        'id': 1
+    })
+    res = resp.json()
+    if 'error' in res:
+        raise Exception(f'Error JSON-RPC auth: {res["error"]}')
+    uid = res['result']['uid']
+    return sess, uid
+
+def json_execute(sess, model, method, args=None, kwargs=None):
+    """Ejecuta una llamada a Odoo vía JSON-RPC."""
+    import requests
+    payload = {
+        'jsonrpc': '2.0', 'method': 'call',
+        'params': {
+            'model': model,
+            'method': method,
+            'args': args or [],
+            'kwargs': kwargs or {},
+        },
+        'id': 2
+    }
+    resp = sess.post(f'{ODOO_URL}/web/dataset/call_kw', json=payload)
+    res = resp.json()
+    if 'error' in res:
+        raise Exception(f'JSON-RPC error: {res["error"]}')
+    return res['result']
+
 def fetch_data():
-    """Trae todas las facturas desde Odoo con los status indicados."""
-    uid, models = odoo_connect()
+    """Trae todas las facturas desde Odoo con los status indicados.
+    Usa JSON-RPC en lugar de XML-RPC para evitar el bug de website_sale_wishlist."""
+    sess, uid = json_connect()
     
     domain = [
         ['x_status_operativos', 'in', TARGET_STATUSES],
@@ -44,16 +80,14 @@ def fetch_data():
         'invoice_date', 'x_status_operativos', 'x_work_profesional',
     ]
     
-    ids = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
-                            'search', [domain])
+    ids = json_execute(sess, 'account.move', 'search', [domain])
     
     # Leer en lotes para evitar timeouts
     batch_size = 500
     all_recs = []
     for i in range(0, len(ids), batch_size):
         batch = ids[i:i+batch_size]
-        recs = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
-                                 'read', [batch, fields])
+        recs = json_execute(sess, 'account.move', 'read', [batch, fields])
         all_recs.extend(recs)
     
     # Procesar: extraer datos relevantes
@@ -150,8 +184,7 @@ def fetch_data():
     vip_clients.sort(key=lambda x: -x['contratos'])
     
     # Total rows (all statuses, not just our selection)
-    all_ids = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
-                                 'search_count', [[['move_type', '=', 'out_invoice']]])
+    all_ids = json_execute(sess, 'account.move', 'search_count', [[['move_type', '=', 'out_invoice']]])
     
     # Preparar facturas individuales para filtro por fecha
     invoices = []
@@ -166,7 +199,7 @@ def fetch_data():
         })
     
     # Plan de pagos
-    payment_plan = fetch_payment_plan(uid, models)
+    payment_plan = fetch_payment_plan(sess)
     
     return {
         'status_summary': dict(status_counter.most_common()),
@@ -194,19 +227,18 @@ def fetch_data():
     }
 
 # ── Plan de Pagos (Cuotas Fraccionadas) ──────────────────────────
-def fetch_payment_plan(uid, models):
-    """Obtiene resumen del plan de pagos fraccionado desde invoice.installment.line."""
+def fetch_payment_plan(sess):
+    """Obtiene resumen del plan de pagos fraccionado desde invoice.installment.line.
+    Usa JSON-RPC para evitar bug de website_sale_wishlist."""
     from collections import defaultdict
     
-    # Leer en lotes
-    ids = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'invoice.installment.line',
-                            'search', [[]])
+    ids = json_execute(sess, 'invoice.installment.line', 'search', [[]])
     batch_size = 2000
     all_lines = []
     for i in range(0, len(ids), batch_size):
         batch = ids[i:i+batch_size]
-        recs = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'invoice.installment.line',
-                                 'read', [batch, ['state', 'amount', 'payment_date', 'invoice_id']])
+        recs = json_execute(sess, 'invoice.installment.line', 'read',
+                            [batch, ['state', 'amount', 'payment_date', 'invoice_id']])
         all_lines.extend(recs)
     
     # Agrupar por estado
@@ -220,6 +252,8 @@ def fetch_payment_plan(uid, models):
     hoy = date.today()
     # ciclo_data[dia][state] = {'cantidad': N, 'monto': X, 'dias_mora': [lista]}
     ciclo_data = defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0, 'dias_mora': []}))
+    # ciclo_clientes[dia][partner_name][state] = {'cantidad': N, 'monto': X}
+    ciclo_clientes = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0})))
     
     for line in all_lines:
         st = line.get('state', '')
@@ -252,6 +286,11 @@ def fetch_payment_plan(uid, models):
                         c['dias_mora'].append(d_mora)
                 except (ValueError, TypeError):
                     pass
+            # Guardar cliente a nivel de día (se asignará partner después)
+            temp_cliente_key = inv_id  # lo vinculamos después con partner_map
+            cc = ciclo_clientes[dia][temp_cliente_key][st]
+            cc['cantidad'] += 1
+            cc['monto'] += amt
         
         if st == 'vencido':
             vencidos.append({'invoice_id': inv_id, 'invoice_name': inv_name,
@@ -274,12 +313,22 @@ def fetch_payment_plan(uid, models):
         inv_list = list(inv_ids)
         inv_batches = [inv_list[i:i+500] for i in range(0, len(inv_list), 500)]
         for batch in inv_batches:
-            inv_data = models.execute_kw(ODOO_DB, uid, ODOO_PASS, 'account.move',
-                                         'read', [batch, ['partner_id', 'name']])
+            inv_data = json_execute(sess, 'account.move', 'read', [batch, ['partner_id', 'name']])
             for inv in inv_data:
                 pid = inv.get('partner_id')
                 partner = pid[1] if isinstance(pid, list) and len(pid) > 1 else 'Desconocido'
                 partner_map[inv['id']] = partner
+    
+    # Resolver inv_id -> partner name en ciclo_clientes (agregar por partner)
+    ciclo_clientes_por_partner = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'cantidad': 0, 'monto': 0.0})))
+    for dia, invs in ciclo_clientes.items():
+        for inv_id, states in invs.items():
+            partner = partner_map.get(inv_id, 'Desconocido')
+            for st, vals in states.items():
+                cc = ciclo_clientes_por_partner[dia][partner][st]
+                cc['cantidad'] += vals['cantidad']
+                cc['monto'] += vals['monto']
+    ciclo_clientes = ciclo_clientes_por_partner
     
     # Combinar datos de clientes en vencidos
     clientes_vencidos = defaultdict(lambda: {'monto': 0.0, 'cuotas': 0, 'facturas': []})
@@ -301,7 +350,7 @@ def fetch_payment_plan(uid, models):
     
     # Construir ciclo_analysis para rangos 03-18 y 10-25
     def build_ciclo_range(dia_min, dia_max):
-        """Construye datos para un rango de días de ciclo."""
+        """Construye datos para un rango de días de ciclo, incluyendo clientes."""
         result = {}
         for d in range(dia_min, dia_max + 1):
             entry = {}
@@ -314,6 +363,25 @@ def fetch_payment_plan(uid, models):
                     'dias_mora_prom': round(sum(dm)/len(dm), 1) if dm else 0,
                     'max_dias_mora': max(dm) if dm else 0
                 }
+            # Clientes del día (top 30 por monto draft+vencido)
+            clients_by_day = ciclo_clientes.get(d, {})
+            clients_list = []
+            for partner, states in clients_by_day.items():
+                draft_monto = states.get('draft', {}).get('monto', 0)
+                venc_monto = states.get('vencido', {}).get('monto', 0)
+                total = draft_monto + venc_monto
+                if total > 0:
+                    clients_list.append({
+                        'cliente': partner,
+                        'monto_draft': round(draft_monto, 2),
+                        'cant_draft': states.get('draft', {}).get('cantidad', 0),
+                        'monto_vencido': round(venc_monto, 2),
+                        'cant_vencido': states.get('vencido', {}).get('cantidad', 0),
+                        'monto_pagado': round(states.get('paid', {}).get('monto', 0), 2),
+                        'cant_pagado': states.get('paid', {}).get('cantidad', 0),
+                    })
+            clients_list.sort(key=lambda x: -(x['monto_draft'] + x['monto_vencido']))
+            entry['clientes'] = clients_list[:30]
             result[str(d)] = entry
         return result
     

@@ -550,6 +550,25 @@ html = f'''<!DOCTYPE html>
                     <tbody id="tablaCiclo"></tbody>
                 </table>
             </div>
+            <div style="margin-top:18px;border-top:1px solid #e8eaef;padding-top:14px">
+                <h4 id="cicloClientesTitle" style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:6px">👥 Clientes del Día</h4>
+                <div id="cicloClientesResumen" style="margin-bottom:10px"></div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th class="text-right">Cuotas Debidas</th>
+                                <th class="text-right">$ Debido</th>
+                                <th class="text-right">Vencidas</th>
+                                <th class="text-right">$ Vencido</th>
+                                <th class="text-right">$ Pagado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaClientesDia"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1259,8 +1278,10 @@ function renderCiclo(rango) {{
     var html = '';
     claves.forEach(function(d) {{
         var e = dias[d];
-        html += '<tr>' +
-            '<td><strong>Día ' + d + '</strong></td>' +
+        var hoy = new Date().getDate();
+        var hoyClass = parseInt(d) === hoy ? ' style=\"background:#eef2ff;font-weight:700\"' : '';
+        html += '<tr' + hoyClass + ' data-rango=\"' + rango + '\" data-dia=\"' + d + '\" style=\"cursor:pointer\">' +
+            '<td><strong>Día ' + d + '</strong>' + (parseInt(d) === hoy ? '<span style=\"color:#213C83;font-size:10px;margin-left:6px\">HOY</span>' : '') + '</td>' +
             '<td class=\"text-right\">' + e.draft.cantidad + '</td>' +
             '<td class=\"text-right\">' + fmtMoney(e.draft.monto) + '</td>' +
             '<td class=\"text-right\" style=\"color:' + (e.vencido.cantidad>0?'#ef4444':'#999') + '\">' + e.vencido.cantidad + '</td>' +
@@ -1272,6 +1293,50 @@ function renderCiclo(rango) {{
     }});
     var tbody = document.getElementById('tablaCiclo');
     if (tbody) tbody.innerHTML = html;
+    
+    // Click handler via delegación
+    tbody.onclick = function(e) {{
+        var tr = e.target.closest('tr');
+        if (tr && tr.dataset.rango && tr.dataset.dia) {{
+            mostrarClientesDia(tr.dataset.rango, parseInt(tr.dataset.dia));
+        }}
+    }};
+    
+    // Mostrar clientes del primer día o del día de hoy
+    var diaInicial = claves.includes(String(hoy)) ? String(hoy) : claves[0];
+    mostrarClientesDia(rango, parseInt(diaInicial));
+}}
+
+function mostrarClientesDia(rango, dia) {{
+    document.querySelectorAll('#tablaCiclo tr').forEach(function(r) {{
+        r.style.background = parseInt(r.querySelector('td').textContent.replace(/[^0-9]/g,'')) === dia ? '#eef2ff' : '';
+    }});
+    var dias = DATA.payment_plan.ciclo_analysis[rango];
+    if (!dias) return;
+    var diaData = dias[String(dia)];
+    if (!diaData || !diaData.clientes) return;
+    var cl = diaData.clientes;
+    var title = document.getElementById('cicloClientesTitle');
+    if (title) title.textContent = '👥 Clientes — Día ' + dia + ' (' + cl.length + ' clientes)';
+    var resumen = document.getElementById('cicloClientesResumen');
+    if (resumen) {{
+        var totDraft = 0, totVenc = 0, totPaid = 0;
+        cl.forEach(function(c) {{ totDraft += c.monto_draft; totVenc += c.monto_vencido; totPaid += c.monto_pagado; }});
+        resumen.innerHTML =
+            '<span style=\"font-size:13px;color:#666\">Esperado: <strong>$' + (totDraft+totVenc).toLocaleString('en-US',{{minimumFractionDigits:2}}) + '</strong> &nbsp;·&nbsp; Cobrado: <strong style=\"color:#10b981\">$' + totPaid.toLocaleString('en-US',{{minimumFractionDigits:2}}) + '</strong></span>';
+    }}
+    var tbody = document.getElementById('tablaClientesDia');
+    if (!tbody) return;
+    tbody.innerHTML = cl.map(function(c) {{
+        return '<tr>' +
+            '<td><strong>' + c.cliente + '</strong></td>' +
+            '<td class=\"text-right\">' + (c.cant_draft||0) + '</td>' +
+            '<td class=\"text-right\">' + fmtMoney(c.monto_draft) + '</td>' +
+            '<td class=\"text-right\" style=\"color:' + (c.monto_vencido>0?'#ef4444':'#999') + '\">' + (c.cant_vencido||0) + '</td>' +
+            '<td class=\"text-right\" style=\"color:' + (c.monto_vencido>0?'#ef4444':'#999') + '\">' + fmtMoney(c.monto_vencido) + '</td>' +
+            '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(c.monto_pagado) + '</td>' +
+            '</tr>';
+    }}).join('');
 }}
 
 renderTable();
