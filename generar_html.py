@@ -524,11 +524,28 @@ html = f'''<!DOCTYPE html>
         <!-- CICLO DE PAGO (dentro del tab) -->
         <div class="table-card">
             <h3>📆 Ciclo de Pago — Análisis por Día</h3>
-            <div id="cicloMañana" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #43a047;border-radius:12px;padding:16px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-                <div><div style="font-size:12px;color:#2e7d32;font-weight:600">📅 MAÑANA — DÍA <span id="mananaDia">25</span></div><div style="font-size:22px;font-weight:800;color:#1b5e20" id="mananaTotal">$0</div><div style="font-size:11px;color:#555">Total a percibir</div></div>
+            <div id="cicloMañana" onclick="mostrarManana()" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #43a047;border-radius:12px;padding:16px;margin-bottom:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;cursor:pointer;transition:transform 0.15s;hover:transform:scale(1.01)">
+                <div><div style="font-size:12px;color:#2e7d32;font-weight:600">📅 MAÑANA — DÍA <span id="mananaDia">25</span></div><div style="font-size:22px;font-weight:800;color:#1b5e20" id="mananaTotal">$0</div><div style="font-size:11px;color:#555">Total a percibir — haz clic para ver clientes</div></div>
                 <div><div style="font-size:12px;color:#2e7d32;font-weight:600">👥 Clientes</div><div style="font-size:22px;font-weight:800;color:#1b5e20" id="mananaClientes">0</div><div style="font-size:11px;color:#555">que deben pagar</div></div>
                 <div><div style="font-size:12px;color:#c62828;font-weight:600">⚠️ Vencido</div><div style="font-size:22px;font-weight:800;color:#c62828" id="mananaVencido">$0</div><div style="font-size:11px;color:#555">arrastrado</div></div>
                 <div><div style="font-size:12px;color:#1565c0;font-weight:600">✅ Histórico Cobrado</div><div style="font-size:22px;font-weight:800;color:#1565c0" id="mananaPagado">$0</div><div style="font-size:11px;color:#555">en este día</div></div>
+            </div>
+            <!-- Lista de clientes de mañana -->
+            <div id="mananaClientesSection" style="margin-bottom:16px;display:none">
+                <h4 style="font-size:14px;font-weight:700;color:var(--primary);margin:0 0 8px 0">📋 Clientes que pagan mañana <span id="mananaClientesSubtotal" style="font-size:12px;color:#666;font-weight:400"></span></h4>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th class="text-right">$ Debido</th>
+                                <th class="text-right">$ Vencido</th>
+                                <th class="text-right">$ Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaClientesManana"></tbody>
+                    </table>
+                </div>
             </div>
             <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="ciclo-btn active" data-rango="03-18" onclick="renderCiclo('03-18')">Ciclo 03 – 18</button>
@@ -1252,8 +1269,9 @@ try {{
                 return '<tr><td><strong>' + v.cliente + '</strong></td><td class=\"text-right\">' + v.cuotas + '</td><td class=\"text-right\" style=\"color:#ef4444;font-weight:600\">' + fmtMoney(v.monto) + '</td><td style=\"font-size:11px;color:#666\">' + factStr + '</td></tr>';
             }}).join('');
         }}
-        renderCiclo('03-18');
+        renderCiclo('10-25');
         renderManana();
+        mostrarManana();
     }}
 }} catch(e) {{ console.error('Payment plan error:', e); }}
 
@@ -1318,27 +1336,23 @@ function renderCiclo(rango) {{
 function renderManana() {{
     var hoy = new Date().getDate();
     var manana = hoy + 1;
-    // Día 32 = 1 del mes siguiente
     var pp = DATA.payment_plan;
     if (!pp || !pp.ciclo_analysis) return;
-    // Elegir rango que contenga mañana
     var rango = null;
     if (manana >= 3 && manana <= 18) rango = '03-18';
     else if (manana >= 10 && manana <= 25) rango = '10-25';
-    else if (manana > 25 || manana < 3) rango = '03-18'; // días 26-31 → ciclo siguiente
+    else if (manana > 25 || manana < 3) rango = '03-18';
     if (!rango) return;
     var dias = pp.ciclo_analysis[rango];
     if (!dias) return;
     var diaData = dias[String(manana)];
     if (!diaData) {{
-        // Si no hay datos exactos, buscar el día más cercano disponible
-        var claves = Object.keys(dias).sort(function(a,b){{return parseInt(a)-parseInt(b)}});
-        // Mostrar "Sin datos" pero dejar la tarjeta visible
         document.getElementById('mananaDia').textContent = manana;
         document.getElementById('mananaTotal').textContent = '$0';
         document.getElementById('mananaClientes').textContent = '0';
         document.getElementById('mananaVencido').textContent = '$0';
         document.getElementById('mananaPagado').textContent = '$0';
+        document.getElementById('mananaClientesSection').style.display = 'none';
         return;
     }}
     document.getElementById('mananaDia').textContent = manana;
@@ -1346,6 +1360,58 @@ function renderManana() {{
     document.getElementById('mananaClientes').textContent = (diaData.clientes||[]).length;
     document.getElementById('mananaVencido').textContent = fmtMoney(diaData.vencido.monto);
     document.getElementById('mananaPagado').textContent = fmtMoney(diaData.paid.monto);
+    
+    // Poblar tabla de clientes de mañana
+    var cl = diaData.clientes || [];
+    var tbody = document.getElementById('tablaClientesManana');
+    if (tbody) {{
+        var totalEsperado = 0, totalVencido = 0, totalGeneral = 0;
+        tbody.innerHTML = cl.map(function(c) {{
+            var debido = c.monto_draft;
+            var vencido = c.monto_vencido;
+            var total = debido + vencido;
+            totalEsperado += debido;
+            totalVencido += vencido;
+            totalGeneral += total;
+            return '<tr>' +
+                '<td><strong>' + c.cliente + '</strong></td>' +
+                '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(debido) + '</td>' +
+                '<td class=\"text-right\" style=\"color:' + (vencido>0?'#ef4444':'#999') + '\">' + fmtMoney(vencido) + '</td>' +
+                '<td class=\"text-right\" style=\"font-weight:700\">' + fmtMoney(total) + '</td>' +
+                '</tr>';
+        }}).join('');
+        // Agregar fila de total
+        tbody.innerHTML +=
+            '<tr style=\"background:#f0fdf4;font-weight:700\">' +
+            '<td>TOTAL</td>' +
+            '<td class=\"text-right\" style=\"color:#10b981\">' + fmtMoney(totalEsperado) + '</td>' +
+            '<td class=\"text-right\" style=\"color:' + (totalVencido>0?'#ef4444':'#999') + '\">' + fmtMoney(totalVencido) + '</td>' +
+            '<td class=\"text-right\">' + fmtMoney(totalGeneral) + '</td></tr>';
+    }}
+    var subtotal = document.getElementById('mananaClientesSubtotal');
+    if (subtotal) subtotal.textContent = '— Esperado: ' + fmtMoney(diaData.draft.monto) + ' · Vencido: ' + fmtMoney(diaData.vencido.monto);
+    document.getElementById('mananaClientesSection').style.display = 'block';
+}}
+
+function mostrarManana() {{
+    var hoy = new Date().getDate();
+    var manana = hoy + 1;
+    // Elegir rango que contenga mañana
+    var rango = '10-25';
+    if (manana >= 3 && manana <= 18) rango = '03-18';
+    // Cambiar el ciclo activo y mostrar el día
+    renderCiclo(rango);
+    var tbody = document.getElementById('tablaCiclo');
+    if (tbody) {{
+        var trs = tbody.querySelectorAll('tr');
+        for (var i = 0; i < trs.length; i++) {{
+            if (trs[i].dataset.dia == manana) {{
+                trs[i].click();
+                trs[i].scrollIntoView({{behavior:'smooth', block:'center'}});
+                break;
+            }}
+        }}
+    }}
 }}
 
 function mostrarClientesDia(rango, dia) {{
