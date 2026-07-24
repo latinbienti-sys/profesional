@@ -520,14 +520,16 @@ html = f'''<!DOCTYPE html>
                 </table>
             </div>
         </div>
-    </div>
 
-    <div class="footer">
-        <strong>LATINBIEN</strong> — Latinoamericana de Bienes y Servicios, C.A. &nbsp;·&nbsp;
-        Generado el <span id="fechaGeneracion"></span>
-        </div>
+        <!-- CICLO DE PAGO (dentro del tab) -->
         <div class="table-card">
             <h3>📆 Ciclo de Pago — Análisis por Día</h3>
+            <div id="cicloMañana" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #43a047;border-radius:12px;padding:16px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+                <div><div style="font-size:12px;color:#2e7d32;font-weight:600">📅 MAÑANA — DÍA <span id="mananaDia">25</span></div><div style="font-size:22px;font-weight:800;color:#1b5e20" id="mananaTotal">$0</div><div style="font-size:11px;color:#555">Total a percibir</div></div>
+                <div><div style="font-size:12px;color:#2e7d32;font-weight:600">👥 Clientes</div><div style="font-size:22px;font-weight:800;color:#1b5e20" id="mananaClientes">0</div><div style="font-size:11px;color:#555">que deben pagar</div></div>
+                <div><div style="font-size:12px;color:#c62828;font-weight:600">⚠️ Vencido</div><div style="font-size:22px;font-weight:800;color:#c62828" id="mananaVencido">$0</div><div style="font-size:11px;color:#555">arrastrado</div></div>
+                <div><div style="font-size:12px;color:#1565c0;font-weight:600">✅ Histórico Cobrado</div><div style="font-size:22px;font-weight:800;color:#1565c0" id="mananaPagado">$0</div><div style="font-size:11px;color:#555">en este día</div></div>
+            </div>
             <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="ciclo-btn active" data-rango="03-18" onclick="renderCiclo('03-18')">Ciclo 03 – 18</button>
                 <button class="ciclo-btn" data-rango="10-25" onclick="renderCiclo('10-25')">Ciclo 10 – 25</button>
@@ -570,6 +572,11 @@ html = f'''<!DOCTYPE html>
                 </div>
             </div>
         </div>
+    </div>
+
+    <div class="footer">
+        <strong>LATINBIEN</strong> — Latinoamericana de Bienes y Servicios, C.A. &nbsp;·&nbsp;
+        Generado el <span id="fechaGeneracion"></span>
     </div>
 
 <script>
@@ -1246,6 +1253,7 @@ try {{
             }}).join('');
         }}
         renderCiclo('03-18');
+        renderManana();
     }}
 }} catch(e) {{ console.error('Payment plan error:', e); }}
 
@@ -1305,6 +1313,39 @@ function renderCiclo(rango) {{
     // Mostrar clientes del primer día o del día de hoy
     var diaInicial = claves.includes(String(hoy)) ? String(hoy) : claves[0];
     mostrarClientesDia(rango, parseInt(diaInicial));
+}}
+
+function renderManana() {{
+    var hoy = new Date().getDate();
+    var manana = hoy + 1;
+    // Día 32 = 1 del mes siguiente
+    var pp = DATA.payment_plan;
+    if (!pp || !pp.ciclo_analysis) return;
+    // Elegir rango que contenga mañana
+    var rango = null;
+    if (manana >= 3 && manana <= 18) rango = '03-18';
+    else if (manana >= 10 && manana <= 25) rango = '10-25';
+    else if (manana > 25 || manana < 3) rango = '03-18'; // días 26-31 → ciclo siguiente
+    if (!rango) return;
+    var dias = pp.ciclo_analysis[rango];
+    if (!dias) return;
+    var diaData = dias[String(manana)];
+    if (!diaData) {{
+        // Si no hay datos exactos, buscar el día más cercano disponible
+        var claves = Object.keys(dias).sort(function(a,b){{return parseInt(a)-parseInt(b)}});
+        // Mostrar "Sin datos" pero dejar la tarjeta visible
+        document.getElementById('mananaDia').textContent = manana;
+        document.getElementById('mananaTotal').textContent = '$0';
+        document.getElementById('mananaClientes').textContent = '0';
+        document.getElementById('mananaVencido').textContent = '$0';
+        document.getElementById('mananaPagado').textContent = '$0';
+        return;
+    }}
+    document.getElementById('mananaDia').textContent = manana;
+    document.getElementById('mananaTotal').textContent = fmtMoney(diaData.draft.monto);
+    document.getElementById('mananaClientes').textContent = (diaData.clientes||[]).length;
+    document.getElementById('mananaVencido').textContent = fmtMoney(diaData.vencido.monto);
+    document.getElementById('mananaPagado').textContent = fmtMoney(diaData.paid.monto);
 }}
 
 function mostrarClientesDia(rango, dia) {{
