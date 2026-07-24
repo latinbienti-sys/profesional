@@ -18,7 +18,7 @@ ODOO_USER = os.environ.get('ODOO_USER', 'latinbienti@latinbien.com')
 ODOO_PASS = os.environ.get('ODOO_PASS', 'z+cakaSe2805*')
 
 # Statuses que incluimos (Entregado, Aprobado, Cancelación Total)
-TARGET_STATUSES = ['6', '4', '8']
+TARGET_STATUSES = ['6', '4']
 
 # ── Cliente Odoo ────────────────────────────────────────────────
 def odoo_connect():

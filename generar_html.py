@@ -26,7 +26,7 @@ FECHA = col_idx.get('Fecha', 15)
 TRABAJADOR = col_idx.get('Trabajador Profesional', 48)
 SUCURSAL = col_idx.get('Sucursal', 43)
 
-ACTIVE_STATUSES = {'6. CVG - ENTREGADO', '4. SAV - APROBADO - ESPERA ENTREGA', '8. CANCELACION TOTAL'}
+ACTIVE_STATUSES = {'6. CVG - ENTREGADO', '4. SAV - APROBADO - ESPERA ENTREGA'}
 
 def classify_worker(tipo):
     tipo_lower = tipo.lower().strip()
